@@ -49,7 +49,7 @@ public class DockerApplicationSubmitter {
 
         if (appid != null) {
             logger.info("Application complete submit successfully");
-
+            ret.setApplicationIdObject(appid);
             ret.setAppid(appid.toString());
             ret.setApptrackingurl(report.getTrackingUrl());
             return ret;

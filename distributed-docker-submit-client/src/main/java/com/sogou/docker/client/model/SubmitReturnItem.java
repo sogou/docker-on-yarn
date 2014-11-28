@@ -1,11 +1,23 @@
 package com.sogou.docker.client.model;
 
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+
 import javax.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement
 public class SubmitReturnItem {
 	private String appid = null;
-	private String apptrackingurl = null;
+    private ApplicationId applicationIdObject;
+
+    public ApplicationId getApplicationIdObject() {
+        return applicationIdObject;
+    }
+
+    public void setApplicationIdObject(ApplicationId applicationIdObject) {
+        this.applicationIdObject = applicationIdObject;
+    }
+
+    private String apptrackingurl = null;
 	private int status = 0;
 	private String message = null;
 
