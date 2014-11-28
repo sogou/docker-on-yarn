@@ -1,0 +1,394 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         <modelVersion>4.0.0</modelVersion>
+  <groupId>distributed-docker-submit-server</groupId>
+  <artifactId>distributed-docker-submit-server</artifactId>
+   <parent>
+    <groupId>distributed-docker-submit-project</groupId>
+    <artifactId>distributed-docker-submit-project</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <relativePath>../../distributed-docker-submit-project</relativePath>
+  </parent>
+  
+  <version>0.0.1-SNAPSHOT</version>
+    <name>distributed-docker-submit-server</name>
+    <description>distributed-docker system of cloud_dev@sogou-inc.com</description>
+<properties>
+		<skipTests>true</skipTests>
+
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	<jdk.debug>true</jdk.debug>
+		<jdk.optimize>false</jdk.optimize>
+		<jdk.source>1.6</jdk.source>
+		<jdk.target>1.6</jdk.target>
+
+		<version.slf4j>1.6.1</version.slf4j>
+
+		<jersey.version>2.1.1</jersey.version>
+		<jersey-apache-client4.version>1.9</jersey-apache-client4.version>
+
+		<jackson-jaxrs.version>2.3.3</jackson-jaxrs.version>
+
+		<httpclient.version>4.2.5</httpclient.version>
+		<commons-compress.version>1.5</commons-compress.version>
+        <commons-codec.version>1.8</commons-codec.version>
+		<commons-io.version>2.3</commons-io.version>
+		<commons-lang.version>2.6</commons-lang.version>
+		<slf4j-api.version>1.7.5</slf4j-api.version>
+		<jsr305.version>1.3.9</jsr305.version>
+		<jnr.unixsocket.version>0.3</jnr.unixsocket.version>
+		<guava.version>18.0</guava.version>
+
+		<!--test dependencies -->
+		<version.logback>1.0.1</version.logback>
+		<version.testng>5.12.1</version.testng>
+		<hamcrest.library.version>1.3</hamcrest.library.version>
+		<hamcrest.jpa-matchers>1.6</hamcrest.jpa-matchers>
+		<lambdaj.version>2.3.3</lambdaj.version>
+
+
+		<maven-jar-plugin.version>2.2</maven-jar-plugin.version>
+		<maven-compiler-plugin.version>2.3.1</maven-compiler-plugin.version>
+		<maven-release-plugin.version>2.3.1</maven-release-plugin.version>
+		<maven-surefire-plugin.version>2.8.1</maven-surefire-plugin.version>
+		<cobertura-maven-plugin.version>2.5.1</cobertura-maven-plugin.version>
+		<maven-antrun-plugin.version>1.7</maven-antrun-plugin.version>
+	</properties>
+    
+<repositories>
+ <repository>
+            <id>my-local-repo</id>
+            <url>file://${basedir}/lib/repo</url>
+        </repository>
+        <repository>
+			<id>github-releases</id>
+			<url>http://oss.sonatype.org/content/repositories/github-releases/</url>
+		</repository>
+		<repository>
+			<id>clojars.org</id>
+			<url>http://clojars.org/repo</url>
+		</repository>
+        <repository>
+            <id>sogou.repo1</id>
+            <url>http://cloud.sogou-inc.com/nexus/content/groups/public</url>
+            <name>SogouRepository</name>
+        </repository>
+    </repositories>
+
+    <dependencies>
+<dependency>
+      <groupId>distributed-docker-submit-client</groupId>
+      <artifactId>distributed-docker-submit-client</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+			<groupId>commons-lang</groupId>
+			<artifactId>commons-lang</artifactId>
+			<version>${commons-lang.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>${commons-io.version}</version>
+		</dependency>
+		<dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
+        </dependency>
+        <dependency>
+  <groupId>org.apache.hadoop</groupId>
+  <artifactId>hadoop-yarn-common</artifactId>
+  <version>2.3.0</version>
+  <exclusions>
+  	<exclusion>
+  		<artifactId>jersey-core</artifactId>
+  		<groupId>com.sun.jersey</groupId>
+  	</exclusion>
+  </exclusions>
+			</dependency>
+
+<dependency>
+  <groupId>org.apache.hadoop</groupId>
+  <artifactId>hadoop-common</artifactId>
+  <version>2.3.0</version>
+  <exclusions>
+  	<exclusion>
+  		<artifactId>jersey-core</artifactId>
+  		<groupId>com.sun.jersey</groupId>
+  	</exclusion>
+  </exclusions>
+</dependency>
+
+<dependency>
+  <groupId>org.apache.hadoop</groupId>
+  <artifactId>hadoop-yarn-client</artifactId>
+  <version>2.3.0</version>
+  <exclusions>
+  	<exclusion>
+  		<artifactId>jersey-core</artifactId>
+  		<groupId>com.sun.jersey</groupId>
+  	</exclusion>
+  </exclusions>
+</dependency>
+    <dependency>
+      <groupId>org.glassfish.jersey.containers</groupId>
+      <artifactId>jersey-container-servlet-core</artifactId>
+      <version>2.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.glassfish.jersey.media</groupId>
+      <artifactId>jersey-media-json-jackson</artifactId>
+      <version>2.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>javax.xml</groupId>
+      <artifactId>jaxb-api</artifactId>
+      <version>2.1</version>
+    </dependency>
+    
+		<!-- Jetty -->
+		<dependency>
+			<groupId>org.eclipse.jetty.aggregate</groupId>
+			<artifactId>jetty-all</artifactId>
+			<version>8.0.4.v20111024</version>
+		</dependency>
+
+		<!-- Jetty Webapp -->
+		<dependency>
+			<groupId>org.eclipse.jetty</groupId>
+			<artifactId>jetty-webapp</artifactId>
+			<version>8.0.4.v20111024</version>
+		</dependency>
+
+		<!-- JSP Support -->
+		<dependency>
+			<groupId>org.glassfish.web</groupId>
+			<artifactId>javax.servlet.jsp</artifactId>
+			<version>2.2.3</version>
+		</dependency>
+
+		<!-- EL Support -->
+		<dependency>
+			<groupId>org.glassfish.web</groupId>
+			<artifactId>javax.el</artifactId>
+			<version>2.2.3</version>
+		</dependency>
+
+		<!-- JSTL Support -->
+		<dependency>
+			<groupId>org.glassfish.web</groupId>
+			<artifactId>javax.servlet.jsp.jstl</artifactId>
+			<version>1.2.1</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>jstl-api</artifactId>
+					<groupId>javax.servlet.jsp.jstl</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.17</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.mail</groupId>
+            <artifactId>mail</artifactId>
+            <version>1.4.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-exec</artifactId>
+            <version>1.2</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-configuration</groupId>
+            <artifactId>commons-configuration</artifactId>
+            <version>1.9</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sogou</groupId>
+            <artifactId>util.sendalert.javatool</artifactId>
+            <version>0.0.4</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>com.sun.jersey</groupId>
+            <artifactId>jersey-client</artifactId>
+            <version>1.18.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>1.9.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.4</version>
+        </dependency>
+        
+        <dependency>
+			<groupId>com.sun.jersey</groupId>
+			<artifactId>jersey-server</artifactId>
+			<version>1.17</version>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.jersey</groupId>
+			<artifactId>jersey-grizzly2</artifactId>
+			<version>1.17</version>
+		</dependency>
+		<dependency>
+			<groupId>javax.ws.rs</groupId>
+			<artifactId>jsr311-api</artifactId>
+			<version>1.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.jersey</groupId>
+			<artifactId>jersey-json</artifactId>
+			<version>1.17</version>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.jersey</groupId>
+			<artifactId>jersey-client</artifactId>
+			<version>1.17</version>
+		</dependency>
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>20090211</version>
+		</dependency>
+		
+		<dependency>
+     <groupId>com.sun.jersey</groupId>
+     <artifactId>jersey-servlet</artifactId>
+     <version>1.18.1</version>
+</dependency>
+		
+    </dependencies>
+    <build>
+        <plugins>
+        
+         <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.7</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteSnapshots>false</overWriteSnapshots>
+                            <overWriteIfNewer>true</overWriteIfNewer>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.17</version>
+                <configuration>
+                    <additionalClasspathElements>
+                        <additionalClasspathElement>${project.build.directory}/conf</additionalClasspathElement>
+                    </additionalClasspathElements>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.0</version>
+                <configuration>
+                    <source>1.6</source>
+                    <target>1.6</target>
+                    <encoding>GB18030</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <descriptors>
+                        <descriptor>assembly.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+           
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.4</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+        <pluginManagement>
+            <plugins>
+                <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
+                <plugin>
+                    <groupId>org.eclipse.m2e</groupId>
+                    <artifactId>lifecycle-mapping</artifactId>
+                    <version>1.0.0</version>
+                    <configuration>
+                        <lifecycleMappingMetadata>
+                            <pluginExecutions>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>
+                                            org.apache.maven.plugins
+                                        </groupId>
+                                        <artifactId>
+                                            maven-dependency-plugin
+                                        </artifactId>
+                                        <versionRange>
+                                            [2.7,)
+                                        </versionRange>
+                                        <goals>
+                                            <goal>
+                                                copy-dependencies
+                                            </goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore></ignore>
+                                    </action>
+                                </pluginExecution>
+                            </pluginExecutions>
+                        </lifecycleMappingMetadata>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
