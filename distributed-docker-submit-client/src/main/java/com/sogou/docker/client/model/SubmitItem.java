@@ -1,4 +1,4 @@
-package com.sogou.docker.model;
+package com.sogou.docker.client.model;
 
 import javax.xml.bind.annotation.XmlRootElement;
 
