@@ -221,7 +221,7 @@ public class DockerClient {
    */
   public DockerClient(Configuration conf) throws Exception  {
     this(
-      "com.sogou.docker.client.DockerApplicationMaster_23",
+      "com.sogou.docker.client.DockerRunnerApplicationMaster",
       conf);
   }
 
