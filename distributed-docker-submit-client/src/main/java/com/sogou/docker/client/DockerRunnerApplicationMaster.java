@@ -50,11 +50,11 @@ public class DockerRunnerApplicationMaster {
 
   // TODO: Implement client rpc proctocal using REST API.
   // Hostname of the container
-  private String appMasterHostname = "";
+  private String appMasterHostname = "localhost";
   // Port on which the app master listens for status updates from clients
-  private int appMasterRpcPort = -1;
+  private int appMasterRpcPort = 9999;
   // Tracking url to which app master publishes info for clients to monitor
-  private String appMasterTrackingUrl = "";
+  private String appMasterTrackingUrl = ""; //"http://localhost:9999/someurl";
 
   // Hardcoded path to custom log_properties
   private static final String log4jPath = "log4j.properties";
@@ -141,6 +141,7 @@ public class DockerRunnerApplicationMaster {
 
     try{
       localDockerContainerRunner.run();
+      Thread.sleep(60* 1000);
 
 //      while (!done && !localDockerContainerRunner.isFinshed()) {
 //        try {
