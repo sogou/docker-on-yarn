@@ -56,6 +56,7 @@ public class DockerRunnerApplicationMaster {
   // Tracking url to which app master publishes info for clients to monitor
   private String appMasterTrackingUrl = ""; //"http://localhost:9999/someurl";
 
+  private String appHistoryTrackingUrlBase = "";
   // Hardcoded path to custom log_properties
   private static final String log4jPath = "log4j.properties";
   private int requestPriority;
@@ -71,13 +72,23 @@ public class DockerRunnerApplicationMaster {
   public DockerRunnerApplicationMaster() {
     // Set up the configuration
     conf = new YarnConfiguration();
+    appHistoryTrackingUrlBase = conf.get("yarn.timeline-service.webapp.address");
+    if (appHistoryTrackingUrlBase == null || appHistoryTrackingUrlBase.isEmpty()){
+      throw new IllegalArgumentException("No yarn.timeline-service.webapp.address is found. Check your yarn-site.xml");
+    }
+
+    appHistoryTrackingUrlBase = "http://" + appHistoryTrackingUrlBase + "/applicationhistory/app/";
+
   }
 
   public static void main(String[] args) {
     boolean result = false;
     try {
       DockerRunnerApplicationMaster appMaster = new DockerRunnerApplicationMaster();
-      LOG.info("Initializing ApplicationMaster");
+      LOG.info("Initializing ApplicationMaster. "
+      + "yarn.timeline-service.webapp.address" + " = "
+      + appMaster.appHistoryTrackingUrlBase);
+
       boolean doRun = appMaster.init(args);
       if (!doRun) {
         System.exit(0);
@@ -141,7 +152,7 @@ public class DockerRunnerApplicationMaster {
 
     try{
       localDockerContainerRunner.run();
-      Thread.sleep(60* 1000);
+      Thread.sleep(10* 1000);
 
 //      while (!done && !localDockerContainerRunner.isFinshed()) {
 //        try {
@@ -296,7 +307,8 @@ public class DockerRunnerApplicationMaster {
     }
 
     try {
-      amRMClient.unregisterApplicationMaster(appStatus, appMessage, null);
+      amRMClient.unregisterApplicationMaster(appStatus, appMessage,
+              appHistoryTrackingUrlBase + appAttemptID.getApplicationId().toString());
     } catch (YarnException ex) {
       LOG.error("Failed to unregister application", ex);
     } catch (IOException e) {
