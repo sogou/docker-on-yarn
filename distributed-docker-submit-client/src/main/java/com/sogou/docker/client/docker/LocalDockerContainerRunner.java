@@ -1,5 +1,8 @@
 package com.sogou.docker.client.docker;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Create and run a container in the local docker service.
  *
@@ -10,6 +13,24 @@ package com.sogou.docker.client.docker;
 public class LocalDockerContainerRunner {
   private float progress;
   private volatile boolean done = false;
+
+  public static class DockerOptions {
+    public String imageName ;
+    public int containerCpuShares;
+    public int containerMemoryLimit; // In bytes
+    public String command;
+
+    public String containerDataDir; // If given, `localDataDir` will be mapped into
+                                        // `containerDataDir` of docker container.
+    public String localDataDir;
+    public String workingDir;
+
+    public String runnerScriptPath; // The absolute path of runner script on host local filesystem
+
+    // Env variables to be setup for the shell command
+    public Map<String, String> cmdEnv = new HashMap<String, String>();
+  }
+
   public boolean isFinshed(){
     return done;
   }

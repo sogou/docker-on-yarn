@@ -18,18 +18,6 @@
     </modules>
     <repositories>
         <repository>
-            <id>my-local-repo</id>
-            <url>file://${basedir}/lib/repo</url>
-        </repository>
-        <repository>
-            <id>github-releases</id>
-            <url>http://oss.sonatype.org/content/repositories/github-releases/</url>
-        </repository>
-        <repository>
-            <id>clojars.org</id>
-            <url>http://clojars.org/repo</url>
-        </repository>
-        <repository>
             <id>sogou.repo1</id>
             <url>http://cloud.sogou-inc.com/nexus/content/groups/public</url>
             <name>SogouRepository</name>

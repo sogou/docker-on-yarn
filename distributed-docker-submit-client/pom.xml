@@ -24,48 +24,20 @@
 
     </properties>
 
-    <repositories>
-        <repository>
-            <id>my-local-repo</id>
-            <url>file://${basedir}/lib/repo</url>
-        </repository>
-        <repository>
-            <id>github-releases</id>
-            <url>http://oss.sonatype.org/content/repositories/github-releases/</url>
-        </repository>
-        <repository>
-            <id>clojars.org</id>
-            <url>http://clojars.org/repo</url>
-        </repository>
-        <repository>
-            <id>sogou.repo1</id>
-            <url>http://cloud.sogou-inc.com/nexus/content/groups/public</url>
-            <name>SogouRepository</name>
-        </repository>
-    </repositories>
-
     <dependencies>
-
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-common</artifactId>
-            <version>2.3.0</version>
-            <exclusions>
-                <exclusion>
-                    <artifactId>jersey-core</artifactId>
-                    <groupId>com.sun.jersey</groupId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
             <version>2.3.0</version>
             <exclusions>
+                <!-- jersey from hadoop confilict with docker-java -->
                 <exclusion>
                     <artifactId>jersey-core</artifactId>
                     <groupId>com.sun.jersey</groupId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.sun.jersey</groupId>
+                    <artifactId>jersey-server</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -75,25 +47,30 @@
             <artifactId>hadoop-yarn-client</artifactId>
             <version>2.3.0</version>
             <exclusions>
+                <!-- jersey from hadoop confilict with docker-java -->
                 <exclusion>
                     <artifactId>jersey-core</artifactId>
                     <groupId>com.sun.jersey</groupId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.sun.jersey</groupId>
+                    <artifactId>jersey-server</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
         <dependency>
             <groupId>com.github.docker-java</groupId>
             <artifactId>docker-java</artifactId>
-            <version>0.10.2-SNAPSHOT</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.github.jnr</groupId>
-                    <artifactId>jffi</artifactId>
-                </exclusion>
-            </exclusions>
+            <version>1.2.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+            <version>4.3.1</version>
+        </dependency>
     </dependencies>
+
     <build>
         <plugins>
             <plugin>
@@ -120,6 +97,41 @@
                     </archive>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.4.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+                <configuration>
+                    <executable>java</executable>
+                    <workingDirectory>.</workingDirectory>
+                    <arguments>
+                        <argument>-cp</argument>
+                        <classpath />
+                        <argument>com.sogou.docker.client.docker.YarnDockerClient</argument>
+                        <argument>-container_memory</argument>
+                        <argument>512</argument>
+                        <argument>-container_vcores</argument>
+                        <argument>1</argument>
+                        <argument>-docker_image</argument>
+                        <argument>registry.docker.dev.sogou-inc.com:5000/clouddev/sogou-rhel-base</argument>
+                        <argument>-workingdir</argument><argument>/</argument>
+                        <argument> -runner_path</argument> <argument>/Users/guoshiwei/DEV/docker-client/runner.py</argument>
+                        <argument>echo</argument><argument>hello</argument>
+
+                    </arguments>
+                </configuration>
+            </plugin>
+
+
         </plugins>
         <pluginManagement>
             <plugins>
