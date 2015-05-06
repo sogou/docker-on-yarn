@@ -12,7 +12,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.webapp.NotFoundException;
 
@@ -29,10 +28,6 @@ public class YarnDockerClient {
 
   private static String[] RUN_CMD = new String[]{"/usr/bin/python", CONTAINER_RUNNER_SCRIPT_PATH};
   public final YarnDockerClientParam yarnDockerClientParam = new YarnDockerClientParam();
-  // Configuration
-  private Configuration conf;
-  private YarnClient yarnClient;
-
 
   private long streamTimeout = 10 * 1000;
   private int stopTimeout = 60;
@@ -59,15 +54,8 @@ public class YarnDockerClient {
 
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
-  YarnDockerClient(Configuration conf) {
-    this.conf = conf;
-    yarnClient = YarnClient.createYarnClient();
-    yarnClient.init(conf);
-
-  }
-
   public YarnDockerClient() throws Exception {
-    this(new YarnConfiguration());
+
   }
 
 
