@@ -11,8 +11,6 @@ import com.github.dockerjava.core.DockerClientConfig;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.webapp.NotFoundException;
 
 import java.io.*;
@@ -60,16 +58,16 @@ public class YarnDockerClient {
 
 
   public boolean init(String[] args) throws ParseException {
-    try{
+    try {
       this.yarnDockerClientParam.initFromCmdlineArgs(args);
-    }catch(Exception e){
+    } catch (Exception e) {
       System.err.println(e.getMessage());
       yarnDockerClientParam.printUsage();
       return false;
     }
     ArrayList<String> cmds = new ArrayList<String>();
     Collections.addAll(cmds, RUN_CMD);
-    Collections.addAll(cmds,yarnDockerClientParam.cmdAndArgs);
+    Collections.addAll(cmds, yarnDockerClientParam.cmdAndArgs);
     yarnDockerClientParam.cmdAndArgs = cmds.toArray(yarnDockerClientParam.cmdAndArgs);
 
     this.volumeBinds.add(new Bind(yarnDockerClientParam.runnerScriptPath,
@@ -81,7 +79,9 @@ public class YarnDockerClient {
   public int runtask() throws IOException {
     DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
             .createDefaultConfigBuilder();
-    configBuilder.withLoggingFilter(this.yarnDockerClientParam.debugFlag);
+    configBuilder.withLoggingFilter(this.yarnDockerClientParam.debugFlag)
+            .withUri("https://" + yarnDockerClientParam.dockerHost)
+            .withDockerCertPath(yarnDockerClientParam.dockerCertPath);
     DockerClientConfig config = configBuilder.build();
 
     this.docker = DockerClientBuilder.getInstance(config)
@@ -209,7 +209,7 @@ public class YarnDockerClient {
           if (reader != null) {
             try {
               reader.close();
-              System.out.println("stdout closed");
+              LOG.info("stdout closed");
             } catch (IOException e) {
               e.printStackTrace();
             }
@@ -246,7 +246,7 @@ public class YarnDockerClient {
           if (reader != null) {
             try {
               reader.close();
-              System.out.println("stderr closed");
+             LOG.info("stderr closed");
             } catch (IOException e) {
               e.printStackTrace();
             }
@@ -267,47 +267,6 @@ public class YarnDockerClient {
     }
   }
 
-  private void bindHostDir(StartContainerCmd startCmd) {
-    // TODO Auto-generated method stub
-    Bind[] binds = null;
-    if (this.yarnDockerClientParam.virtualDirs != null) {
-      binds = new Bind[this.yarnDockerClientParam.virtualDirs.length + 1];
-      File file = new File(Constants.DOCKER_USER_SPACE + "/" + this.containerId);
-      boolean filesucc = false;
-      try {
-        filesucc = file.mkdir();
-      } catch (Exception e) {
-        e.printStackTrace();
-        throw new RuntimeException(
-                "can not mkdir " + Constants.DOCKER_USER_SPACE + "/" + this.containerId + " exception: " + e.getMessage());
-      }
-      if (!filesucc) {
-        throw new RuntimeException(
-                "fail to  mkdir " + Constants.DOCKER_USER_SPACE + "/" + this.containerId);
-      }
-
-
-      try {
-        for (int i = 0; i < yarnDockerClientParam.virtualDirs.length; ++i) {
-          binds[i] = Bind.parse(Constants.DOCKER_USER_SPACE + "/" + this.containerId + ":" + this.yarnDockerClientParam.virtualDirs[i]);
-        }
-
-
-      } catch (Exception e) {
-        e.printStackTrace();
-        throw new IllegalArgumentException(
-                " Illegal virtualdir specified for YarnDockerClient to run");
-      }
-    }
-
-    if (binds == null) {
-      binds = new Bind[1];
-    }
-    System.out.println("runpath: " + runPath);
-    binds[binds.length - 1] = Bind.parse(runPath + ":rw");
-    startCmd.withBinds(binds);
-  }
-
   private boolean assentPullImage() throws IOException {
     PullImageCmd pullImageCmd = docker.pullImageCmd(yarnDockerClientParam.dockerImage);
     pullImageCmd.exec().close();
@@ -316,7 +275,6 @@ public class YarnDockerClient {
 
   public static void main(String[] args) {
 
-    System.err.println(System.getProperty("java.class.path"));
     int result = -1;
     try {
       YarnDockerClient client = new YarnDockerClient();
@@ -363,6 +321,7 @@ public class YarnDockerClient {
       WaitContainerCmd wc = docker.waitContainerCmd(id);
       try {
         exitcode = wc.exec();
+        containerStoped = true;
         System.out.println("waitThread end");
       } catch (NotFoundException e) {
         e.printStackTrace();

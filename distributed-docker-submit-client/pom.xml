@@ -122,9 +122,11 @@
                         <argument>-container_vcores</argument>
                         <argument>1</argument>
                         <argument>-docker_image</argument>
-                        <argument>registry.docker.dev.sogou-inc.com:5000/clouddev/sogou-rhel-base</argument>
+                        <argument>registry.docker.dev.sogou-inc.com:5000/clouddev/sogou-rhel-base:6.5</argument>
                         <argument>-workingdir</argument><argument>/</argument>
                         <argument> -runner_path</argument> <argument>/Users/guoshiwei/DEV/docker-client/runner.py</argument>
+                        <argument>-docker_host</argument><argument>192.168.59.103:2376</argument>
+                        <argument>-docker_cert_path</argument><argument>/Users/guoshiwei/.boot2docker/certs/boot2docker-vm</argument>
                         <argument>echo</argument><argument>hello</argument>
 
                     </arguments>

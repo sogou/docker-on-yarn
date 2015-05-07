@@ -11,6 +11,9 @@ public class YarnDockerClientParam {// Debug flag
   String[] cmdAndArgs;// Env variables to be setup for the shell command
   Map<String, String> cmdEnv = new HashMap<String, String>();
   public String dockerImage;
+  public String dockerHost;
+  public String dockerCertPath;
+
   public String workingDir;
   public String[] virtualDirs;// memory to request for container in docker will be executed
   long containerMemory = 10;// virtual cores to request for container in docker will be executed,to do
@@ -22,6 +25,8 @@ public class YarnDockerClientParam {// Debug flag
   public YarnDockerClientParam(){
     opts.addOption("timeout", true, "Application timeout in milliseconds");
     opts.addOption("docker_image", true, "docker image to be executed");
+    opts.addOption("docker_host", true, "ip:port of docker server, example: localhost:2376");
+    opts.addOption("docker_cert_path", true, "Example: /some/path/certs");
 
     opts.addOption("runner_path", true, "The absolute path of runner script on host local filesystem");
     opts.addOption("workingdir", true, "working dir for command");
@@ -32,6 +37,13 @@ public class YarnDockerClientParam {// Debug flag
     opts.addOption("container_vcores", true,
             "Amount of virtual cores to be requested to run the docker container");
     opts.addOption("debug", false, "Dump out debug information");
+  }
+
+  private static void requireOptionValue(String optionValue, String optionName){
+    if(optionValue == null || optionValue.trim().isEmpty()){
+      throw new IllegalArgumentException("No value given for '" + optionName
+      + "' option.");
+    }
   }
   public void initFromCmdlineArgs(String[] args) throws ParseException {
 
@@ -55,6 +67,11 @@ public class YarnDockerClientParam {// Debug flag
                 "No image specified for YarnDockerClient to initialize");
       }
     }
+    dockerHost = cmdLine.getOptionValue("docker_host");
+    requireOptionValue(dockerHost, "docker_host");
+
+    dockerCertPath = cmdLine.getOptionValue("docker_cert_path");
+    requireOptionValue(dockerCertPath, "docker_cert_path");
 
     runnerScriptPath = cmdLine.getOptionValue("runner_path", null);
 
