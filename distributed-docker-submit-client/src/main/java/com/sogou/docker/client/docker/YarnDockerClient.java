@@ -8,12 +8,14 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
-import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.webapp.NotFoundException;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,7 +27,7 @@ public class YarnDockerClient {
   private static String CONTAINER_RUNNER_SCRIPT_PATH = "/runner.py";
 
   private static String[] RUN_CMD = new String[]{"/usr/bin/python", CONTAINER_RUNNER_SCRIPT_PATH};
-  public final YarnDockerClientParam yarnDockerClientParam = new YarnDockerClientParam();
+  private final YarnDockerClientParam yarnDockerClientParam ;
 
   private long streamTimeout = 10 * 1000;
   private int stopTimeout = 60;
@@ -52,69 +54,39 @@ public class YarnDockerClient {
 
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
-  public YarnDockerClient() throws Exception {
 
-  }
-
-
-  public boolean init(String[] args) throws ParseException {
-    try {
-      this.yarnDockerClientParam.initFromCmdlineArgs(args);
-    } catch (Exception e) {
-      System.err.println(e.getMessage());
-      yarnDockerClientParam.printUsage();
-      return false;
-    }
-    ArrayList<String> cmds = new ArrayList<String>();
-    Collections.addAll(cmds, RUN_CMD);
-    Collections.addAll(cmds, yarnDockerClientParam.cmdAndArgs);
-    yarnDockerClientParam.cmdAndArgs = cmds.toArray(yarnDockerClientParam.cmdAndArgs);
-
-    this.volumeBinds.add(new Bind(yarnDockerClientParam.runnerScriptPath,
-            new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
-
-    return true;
+  public YarnDockerClient(YarnDockerClientParam yarnDockerClientParam) {
+    this.yarnDockerClientParam = yarnDockerClientParam;
   }
 
   public int runtask() throws IOException {
-    DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
-            .createDefaultConfigBuilder();
-    configBuilder.withLoggingFilter(this.yarnDockerClientParam.debugFlag)
-            .withUri("https://" + yarnDockerClientParam.dockerHost)
-            .withDockerCertPath(yarnDockerClientParam.dockerCertPath);
-    DockerClientConfig config = configBuilder.build();
 
-    this.docker = DockerClientBuilder.getInstance(config)
-            .build();
 
+    DockerClient dockerClient = getDockerClient();
+    this.docker = dockerClient;
+
+    LOG.info("Pulling docker image: " + yarnDockerClientParam.dockerImage);
     boolean existed = assentPullImage();
 
     if (!existed) {
       return ExitCode.IMAGE_NOTFOUND.getValue();
     }
 
+    CreateContainerCmd createContainerCmd = getCreateContainerCmd();
 
-    CreateContainerCmd con = docker.createContainerCmd(this.yarnDockerClientParam.dockerImage);
-    con.withCpuShares(this.yarnDockerClientParam.containerVirtualCores);
-    con.withMemoryLimit(new Long(this.yarnDockerClientParam.containerMemory * 1024 * 1024));
-    con.withAttachStderr(true);
-    con.withAttachStdin(true);
-    con.withAttachStdout(true);
-    con.withCmd(this.yarnDockerClientParam.cmdAndArgs);
     final CreateContainerResponse response;
     try {
-      response = con.exec();
+      LOG.info("Creating docker container: " + createContainerCmd.toString());
+      response = createContainerCmd.exec();
     } catch (Exception e) {
       e.printStackTrace();
       return ExitCode.CONTAINER_NOT_CREATE.getValue();
     }
     this.containerId = response.getId();
 
-    StartContainerCmd startCmd = docker.startContainerCmd(response.getId());
-    startCmd.withBinds(volumeBinds.toArray(new Bind[0]));
-//		bindHostDir(startCmd);
-
+    StartContainerCmd startCmd = getStartContainerCmd();
     try {
+      LOG.info("Start docker container: " + containerId);
       startCmd.exec();
     } catch (NotFoundException e) {
       e.printStackTrace();
@@ -162,7 +134,48 @@ public class YarnDockerClient {
     return value;
   }
 
+  private DockerClient getDockerClient() {
+    LOG.info("Initializing Docker Client");
+    DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
+            .createDefaultConfigBuilder();
+    configBuilder.withLoggingFilter(this.yarnDockerClientParam.debugFlag)
+            .withUri("https://" + yarnDockerClientParam.dockerHost)
+            .withDockerCertPath(yarnDockerClientParam.dockerCertPath);
+    DockerClientConfig config = configBuilder.build();
+
+    return DockerClientBuilder.getInstance(config)
+            .build();
+  }
+
+  private CreateContainerCmd getCreateContainerCmd() {
+    ArrayList<String> cmds = new ArrayList<String>();
+    Collections.addAll(cmds, RUN_CMD);
+    Collections.addAll(cmds, yarnDockerClientParam.cmdAndArgs);
+    yarnDockerClientParam.cmdAndArgs = cmds.toArray(yarnDockerClientParam.cmdAndArgs);
+
+
+    CreateContainerCmd con = docker.createContainerCmd(this.yarnDockerClientParam.dockerImage);
+    con.withCpuShares(this.yarnDockerClientParam.containerVirtualCores);
+    con.withMemoryLimit(new Long(this.yarnDockerClientParam.containerMemory * 1024 * 1024));
+    con.withAttachStderr(true);
+    con.withAttachStdin(true);
+    con.withAttachStdout(true);
+    con.withCmd(this.yarnDockerClientParam.cmdAndArgs);
+    return con;
+  }
+
+  private StartContainerCmd getStartContainerCmd() {
+    StartContainerCmd startCmd = docker.startContainerCmd(containerId);
+
+    this.volumeBinds.add(new Bind(yarnDockerClientParam.runnerScriptPath,
+            new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
+
+    startCmd.withBinds(volumeBinds.toArray(new Bind[0]));
+    return startCmd;
+  }
+
   private void finish() {
+    LOG.info("Finishing");
     try {
       stderrThread.join(this.streamTimeout);
     } catch (InterruptedException e) {
@@ -277,30 +290,34 @@ public class YarnDockerClient {
 
     int result = -1;
     try {
-      YarnDockerClient client = new YarnDockerClient();
-      Runtime.getRuntime().addShutdownHook(new Thread(client.new ShutdownHook(), "shutdownWork"));
-      LOG.info("Initializing Client");
+      YarnDockerClientParam yarnDockerClientParam = new YarnDockerClientParam();
       try {
-        boolean doRun = client.init(args);
-        if (!doRun) {
+        yarnDockerClientParam.initFromCmdlineArgs(args);
+        if(yarnDockerClientParam.isPrintHelp){
+          yarnDockerClientParam.printUsage();
           System.exit(ExitCode.SUCC.getValue());
         }
       } catch (IllegalArgumentException e) {
         System.err.println(e.getLocalizedMessage());
+        yarnDockerClientParam.printUsage();
         System.exit(ExitCode.ILLEGAL_ARGUMENT.getValue());
-      } catch (RuntimeException e1) {
-        System.err.println(e1.getLocalizedMessage());
-        System.exit(ExitCode.RUNTIME_EXCEPTION.getValue());
       }
+
+      YarnDockerClient client = new YarnDockerClient(yarnDockerClientParam);
+      Runtime.getRuntime().addShutdownHook(new Thread(client.new ShutdownHook(), "shutdownWork"));
+
       result = client.runtask();
+
     } catch (Throwable t) {
       LOG.fatal("Error running CLient", t);
       System.exit(ExitCode.FAIL.getValue());
     }
+
     if (result == 0) {
       LOG.info("docker task completed successfully");
       System.exit(ExitCode.SUCC.getValue());
     }
+
     LOG.info("Application failed to complete successfully");
     LOG.info("client ends with value: " + result);
     System.exit(result);
@@ -322,7 +339,7 @@ public class YarnDockerClient {
       try {
         exitcode = wc.exec();
         containerStoped = true;
-        System.out.println("waitThread end");
+        LOG.info("waitThread end");
       } catch (NotFoundException e) {
         e.printStackTrace();
       }

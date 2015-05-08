@@ -21,6 +21,7 @@ public class YarnDockerClientParam {// Debug flag
   long clientTimeout = 24 * 3600 * 1000;
   public String runnerScriptPath; // The absolute path of runner script on host local filesystem
   private Options opts = new Options();
+  public boolean isPrintHelp = false; // TODO: get value from command line options.
 
   public YarnDockerClientParam(){
     opts.addOption("timeout", true, "Application timeout in milliseconds");
