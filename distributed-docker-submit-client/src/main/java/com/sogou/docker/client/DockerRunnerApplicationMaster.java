@@ -1,6 +1,7 @@
 package com.sogou.docker.client;
 
 import com.sogou.docker.client.docker.LocalDockerContainerRunner;
+import com.sogou.docker.client.docker.YarnDockerClientParam;
 import org.apache.commons.cli.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -39,6 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Created by guoshiwei on 15/4/25.
  */
 public class DockerRunnerApplicationMaster {
+  public static final String LOCAL_RUNNER_NAME = "runner.py";
+
   private static final Log LOG = LogFactory.getLog(DockerRunnerApplicationMaster.class);
 
   private Configuration conf;
@@ -48,7 +51,6 @@ public class DockerRunnerApplicationMaster {
   private AMRMClientAsync amRMClient;
   private ApplicationAttemptId appAttemptID;
 
-  // TODO: Implement client rpc proctocal using REST API.
   // Hostname of the container
   private String appMasterHostname = "localhost";
   // Port on which the app master listens for status updates from clients
@@ -69,6 +71,31 @@ public class DockerRunnerApplicationMaster {
   private LocalDockerContainerRunner localDockerContainerRunner ;
   private volatile boolean done;
 
+  private String workingDirectory ;
+  private String runnerAbsolutePath;
+
+  public String getRunnerAbsolutePath() {
+    return workingDirectory + "/" + LOCAL_RUNNER_NAME;
+  }
+
+  private static void checkNotEmpty(String v, String msg){
+    if(v == null || v.trim().isEmpty())
+      throw new IllegalArgumentException(msg);
+  }
+
+  private YarnDockerClientParam buildYarnDockerClientParam() {
+    YarnDockerClientParam p = new YarnDockerClientParam();
+
+    // TODO Get those param from yarn
+    p.cmdAndArgs = "echo Hello from docker on yarn".split("\\s+");
+    p.containerMemory = 512;
+    p.containerVirtualCores = 1;
+    p.runnerScriptPath = getRunnerAbsolutePath();
+    p.dockerCertPath = "/Users/guoshiwei/.boot2docker/certs/boot2docker-vm";
+    p.dockerHost = "192.168.59.103:2376";
+    p.dockerImage = "registry.docker.dev.sogou-inc.com:5000/clouddev/sogou-rhel-base:6.5";
+    return p;
+  }
   public DockerRunnerApplicationMaster() {
     // Set up the configuration
     conf = new YarnConfiguration();
@@ -78,7 +105,11 @@ public class DockerRunnerApplicationMaster {
     }
 
     appHistoryTrackingUrlBase = "http://" + appHistoryTrackingUrlBase + "/applicationhistory/app/";
-
+    workingDirectory = System.getenv("PWD");
+    checkNotEmpty(workingDirectory, "PWD enviroment is not set");
+    if (!new File(getRunnerAbsolutePath()).isFile()){
+      throw new IllegalArgumentException("Runner cannot be found: " + getRunnerAbsolutePath());
+    }
   }
 
   public static void main(String[] args) {
@@ -129,13 +160,6 @@ public class DockerRunnerApplicationMaster {
     amRMClient.init(conf);
     amRMClient.start();
 
-
-    // Setup local RPC Server to accept status requests directly from clients
-    // TODO need to setup a protocol for client to be able to communicate to
-    // the RPC server
-    // TODO use the rpc port info to register with the RM for the client to
-    // send requests to this app master
-
     // Register self with ResourceManager
     // This will start heartbeating to the RM
     appMasterHostname = NetUtils.getHostname();
@@ -166,7 +190,7 @@ public class DockerRunnerApplicationMaster {
     finally {
       localDockerContainerRunner.ensureContainerRemoved();
     }
-    // TODO Launch docker container, and wait it finished.
+
     return finish();
   }
 
@@ -255,7 +279,7 @@ public class DockerRunnerApplicationMaster {
   }
 
   private boolean initDockerContainerRunner() {
-    this.localDockerContainerRunner = new LocalDockerContainerRunner();
+    this.localDockerContainerRunner = new LocalDockerContainerRunner(buildYarnDockerClientParam());
     return true;
   }
 

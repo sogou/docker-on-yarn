@@ -1,5 +1,6 @@
 package com.sogou.docker.client;
 
+import com.sogou.docker.client.model.DistributiedDockerConfiguration;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
@@ -35,7 +36,9 @@ public class DockerClientV2 {
   private static final Log LOG = LogFactory.getLog(DockerClientV2.class);
 
   // Configuration
-  private Configuration conf;
+  private Configuration yarnConf;
+
+  private DistributiedDockerConfiguration ddockerConf ;
   private YarnClient yarnClient;
   // Application master specific info to register a new Application with RM/ASM
   private String appName = "";
@@ -74,10 +77,11 @@ public class DockerClientV2 {
   private long clientTimeout;
 
   public DockerClientV2() {
-    this.conf = new YarnConfiguration();
+    this.yarnConf = new YarnConfiguration();
+    this.ddockerConf = new DistributiedDockerConfiguration();
     this.appMasterMainClass = DockerRunnerApplicationMaster.class.getName();
     yarnClient = YarnClient.createYarnClient();
-    yarnClient.init(conf);
+    yarnClient.init(yarnConf);
     this.setupOpts();
   }
 
@@ -228,9 +232,12 @@ public class DockerClientV2 {
     LOG.info("Copy App Master jar from local filesystem and add to local environment");
     // Copy the application master jar to the filesystem
     // Create a local resource to point to the destination jar path
-    FileSystem fs = FileSystem.get(conf);
+    FileSystem fs = FileSystem.get(yarnConf);
     addToLocalResources(fs, appMasterJar, appMasterJarHdfsPath, appId.toString(),
             localResources, null);
+
+    addToLocalResources(fs, ddockerConf.get(DistributiedDockerConfiguration.DDOCKER_RUNNER_PATH),
+            DockerRunnerApplicationMaster.LOCAL_RUNNER_NAME, appId.toString(), localResources, null);
 
     // Set the log4j properties if needed
     if (!log4jPropFile.isEmpty()) {
@@ -253,7 +260,7 @@ public class DockerClientV2 {
     // the classpath to "." for the application jar
     StringBuilder classPathEnv = new StringBuilder(ApplicationConstants.Environment.CLASSPATH.$())
             .append(File.pathSeparatorChar).append("./*");
-    for (String c : conf.getStrings(
+    for (String c : yarnConf.getStrings(
             YarnConfiguration.YARN_APPLICATION_CLASSPATH,
             YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
       classPathEnv.append(File.pathSeparatorChar);
@@ -262,7 +269,7 @@ public class DockerClientV2 {
     classPathEnv.append(File.pathSeparatorChar).append("./log4j.properties");
 
     // add the runtime classpath needed for tests to work
-    if (conf.getBoolean(YarnConfiguration.IS_MINI_YARN_CLUSTER, false)) {
+    if (yarnConf.getBoolean(YarnConfiguration.IS_MINI_YARN_CLUSTER, false)) {
       classPathEnv.append(':');
       classPathEnv.append(System.getProperty("java.class.path"));
     }
@@ -318,7 +325,7 @@ public class DockerClientV2 {
     // Setup security tokens
     if (UserGroupInformation.isSecurityEnabled()) {
       Credentials credentials = new Credentials();
-      String tokenRenewer = conf.get(YarnConfiguration.RM_PRINCIPAL);
+      String tokenRenewer = yarnConf.get(YarnConfiguration.RM_PRINCIPAL);
       if (tokenRenewer == null || tokenRenewer.length() == 0) {
         throw new IOException(
                 "Can't get Master Kerberos principal for the RM to use as renewer");

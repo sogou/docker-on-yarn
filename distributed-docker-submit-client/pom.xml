@@ -40,7 +40,7 @@
                     <artifactId>jersey-server</artifactId>
                 </exclusion>
             </exclusions>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
 
         <dependency>
@@ -58,7 +58,7 @@
                     <artifactId>jersey-server</artifactId>
                 </exclusion>
             </exclusions>
-            <scope>provided</scope>
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>com.github.docker-java</groupId>

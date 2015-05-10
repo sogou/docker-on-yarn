@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<configuration>
+    <property>
+        <name>ddocker.runner.path</name>
+        <value>/Users/guoshiwei/DEV/docker-client/runner.py</value>
+    </property>
+</configuration>

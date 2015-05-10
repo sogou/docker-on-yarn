@@ -7,18 +7,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class YarnDockerClientParam {// Debug flag
-  boolean debugFlag = false;// Args to be passed to the shell command
-  String[] cmdAndArgs;// Env variables to be setup for the shell command
-  Map<String, String> cmdEnv = new HashMap<String, String>();
+  public boolean debugFlag = false;// Args to be passed to the shell command
+  public String[] cmdAndArgs;// Env variables to be setup for the shell command
+  public Map<String, String> cmdEnv = new HashMap<String, String>();
   public String dockerImage;
   public String dockerHost;
   public String dockerCertPath;
 
   public String workingDir;
   public String[] virtualDirs;// memory to request for container in docker will be executed
-  long containerMemory = 10;// virtual cores to request for container in docker will be executed,to do
-  int containerVirtualCores = 1;// Timeout threshold for client. Kill app after time interval expires.
-  long clientTimeout = 24 * 3600 * 1000;
+  public long containerMemory = 10;// virtual cores to request for container in docker will be executed,to do
+  public int containerVirtualCores = 1;// Timeout threshold for client. Kill app after time interval expires.
+  public long clientTimeout = 24 * 3600 * 1000;
   public String runnerScriptPath; // The absolute path of runner script on host local filesystem
   private Options opts = new Options();
   public boolean isPrintHelp = false; // TODO: get value from command line options.

@@ -207,13 +207,13 @@ public class YarnDockerClient {
           logCmd.withFollowStream(true);
           logCmd.withStdErr(false);
           logCmd.withStdOut(true);
-          logCmd.withTimestamps(true);
+          logCmd.withTimestamps(false);
 
           InputStream input = logCmd.exec();
           reader = new BufferedReader(new InputStreamReader(input));
           String line;
           while ((line = reader.readLine()) != null && !isInterrupted()) {
-            System.out.println(line);
+            System.out.println(line.trim());
           }
 
         } catch (Exception e) {
@@ -243,13 +243,13 @@ public class YarnDockerClient {
           logCmd.withFollowStream(true);
           logCmd.withStdErr(true);
           logCmd.withStdOut(false);
-          logCmd.withTimestamps(true);
+          logCmd.withTimestamps(false);
           InputStream input = logCmd.exec();
           reader = new BufferedReader(new InputStreamReader(input));
           String line;
           while ((line = reader.readLine()) != null && !isInterrupted()) {
 
-            System.err.println(line);
+            System.err.println(line.trim());
 
           }
 

@@ -31,25 +31,12 @@ public class LocalDockerContainerRunner {
 
   }
 
-  public LocalDockerContainerRunner() {
+  public LocalDockerContainerRunner(YarnDockerClientParam param) {
 
-    yarnDockerClientParam = buildYarnDockerClientParam();
+    yarnDockerClientParam = param;
     client = new YarnDockerClient(yarnDockerClientParam);
   }
 
-  private YarnDockerClientParam buildYarnDockerClientParam() {
-    YarnDockerClientParam p = new YarnDockerClientParam();
-
-    // TODO Get those param from yarn
-    p.cmdAndArgs = "echo Hello from docker on yarn".split("\\s+");
-    p.containerMemory = 512;
-    p.containerVirtualCores = 1;
-    p.runnerScriptPath = "/Users/guoshiwei/DEV/docker-client/runner.py";
-    p.dockerCertPath = "/Users/guoshiwei/.boot2docker/certs/boot2docker-vm";
-    p.dockerHost = "192.168.59.103:2376";
-    p.dockerImage = "registry.docker.dev.sogou-inc.com:5000/clouddev/sogou-rhel-base:6.5";
-    return p;
-  }
 
   public void run() throws IOException {
 
