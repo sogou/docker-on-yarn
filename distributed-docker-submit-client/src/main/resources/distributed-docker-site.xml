@@ -4,4 +4,12 @@
         <name>ddocker.runner.path</name>
         <value>/Users/guoshiwei/DEV/docker-client/runner.py</value>
     </property>
+    <property>
+        <name>ddocker.docker.cert.path</name>
+        <value>/Users/guoshiwei/.boot2docker/certs/boot2docker-vm</value>
+    </property>
+    <property>
+        <name>ddocker.docker.host</name>
+        <value>192.168.59.103:2376</value>
+    </property>
 </configuration>

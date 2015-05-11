@@ -1,8 +1,10 @@
 package com.sogou.docker.client;
 
-import com.sogou.docker.client.model.DistributiedDockerConfiguration;
+import static com.sogou.docker.client.Utils.checkNotEmpty;
+import com.sogou.docker.client.model.DistributedDockerConfiguration;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -38,7 +40,7 @@ public class DockerClientV2 {
   // Configuration
   private Configuration yarnConf;
 
-  private DistributiedDockerConfiguration ddockerConf ;
+  private DistributedDockerConfiguration ddockerConf ;
   private YarnClient yarnClient;
   // Application master specific info to register a new Application with RM/ASM
   private String appName = "";
@@ -75,10 +77,12 @@ public class DockerClientV2 {
   // Start time for client
   private final long clientStartTime = System.currentTimeMillis();
   private long clientTimeout;
+  private String dockerImage;
+  private String commandToRun;
 
   public DockerClientV2() {
     this.yarnConf = new YarnConfiguration();
-    this.ddockerConf = new DistributiedDockerConfiguration();
+    this.ddockerConf = new DistributedDockerConfiguration();
     this.appMasterMainClass = DockerRunnerApplicationMaster.class.getName();
     yarnClient = YarnClient.createYarnClient();
     yarnClient.init(yarnConf);
@@ -97,6 +101,7 @@ public class DockerClientV2 {
    
     opts.addOption("log_properties", true, "log4j.properties file");
     opts.addOption("container_retry", true, "container retry count");
+    opts.addOption("image", true, "docker image name");
 
     opts.addOption("debug", false, "Dump out debug information");
     opts.addOption("help", false, "Print usage");
@@ -109,7 +114,7 @@ public class DockerClientV2 {
    */
   public boolean init(String[] args) throws ParseException {
 
-    CommandLine cliParser = new GnuParser().parse(opts, args);
+    CommandLine cliParser = new GnuParser().parse(opts, args, true);
 
     if (args.length == 0) {
       throw new IllegalArgumentException("No args specified for client to initialize");
@@ -131,7 +136,6 @@ public class DockerClientV2 {
 
     if (cliParser.hasOption("debug")) {
       debugFlag = true;
-
     }
 
     appName = cliParser.getOptionValue("appname", "DistributedShell");
@@ -159,6 +163,12 @@ public class DockerClientV2 {
     clientTimeout = Integer.parseInt(cliParser.getOptionValue("timeout", "600000"));
 
     log4jPropFile = cliParser.getOptionValue("log_properties", "");
+
+    dockerImage = cliParser.getOptionValue("image");
+    checkNotEmpty(dockerImage, "No dockerImage given");
+
+    commandToRun = StringUtils.join(cliParser.getArgs(), " ");
+    checkNotEmpty(commandToRun, "No command given");
     return true;
   }
 
@@ -236,7 +246,7 @@ public class DockerClientV2 {
     addToLocalResources(fs, appMasterJar, appMasterJarHdfsPath, appId.toString(),
             localResources, null);
 
-    addToLocalResources(fs, ddockerConf.get(DistributiedDockerConfiguration.DDOCKER_RUNNER_PATH),
+    addToLocalResources(fs, ddockerConf.get(DistributedDockerConfiguration.DDOCKER_RUNNER_PATH),
             DockerRunnerApplicationMaster.LOCAL_RUNNER_NAME, appId.toString(), localResources, null);
 
     // Set the log4j properties if needed
@@ -250,65 +260,10 @@ public class DockerClientV2 {
 
     // Set the env variables to be setup in the env where the application master will be run
     LOG.info("Set the environment for the application master");
-    Map<String, String> env = new HashMap<String, String>();
-
-    // Add AppMaster.jar location to classpath
-    // At some point we should not be required to add
-    // the hadoop specific classpaths to the env.
-    // It should be provided out of the box.
-    // For now setting all required classpaths including
-    // the classpath to "." for the application jar
-    StringBuilder classPathEnv = new StringBuilder(ApplicationConstants.Environment.CLASSPATH.$())
-            .append(File.pathSeparatorChar).append("./*");
-    for (String c : yarnConf.getStrings(
-            YarnConfiguration.YARN_APPLICATION_CLASSPATH,
-            YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
-      classPathEnv.append(File.pathSeparatorChar);
-      classPathEnv.append(c.trim());
-    }
-    classPathEnv.append(File.pathSeparatorChar).append("./log4j.properties");
-
-    // add the runtime classpath needed for tests to work
-    if (yarnConf.getBoolean(YarnConfiguration.IS_MINI_YARN_CLUSTER, false)) {
-      classPathEnv.append(':');
-      classPathEnv.append(System.getProperty("java.class.path"));
-    }
-
-    env.put("JAVA_HOME", "/Library/Java/JavaVirtualMachines/jdk1.7.0_71.jdk/Contents/Home");
-    env.put("CLASSPATH", classPathEnv.toString());
+    Map<String, String> env = getEnv();
 
     amContainer.setEnvironment(env);
-
-    // Set the necessary command to execute the application master
-    Vector<CharSequence> vargs = new Vector<CharSequence>(30);
-
-    // Set java executable command
-    LOG.info("Setting up app master command");
-    vargs.add(ApplicationConstants.Environment.JAVA_HOME.$() + "/bin/java");
-    // Set Xmx based on am memory size
-    vargs.add("-Xmx" + amMemory + "m");
-    // Set class name
-    vargs.add(appMasterMainClass);
-
-    // Set params for Application Master
-
-    if (debugFlag) {
-      vargs.add("--debug");
-    }
-
-    vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stdout");
-    vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stderr");
-
-    // Get final commmand
-    StringBuilder command = new StringBuilder();
-    for (CharSequence str : vargs) {
-      command.append(str).append(" ");
-    }
-
-    LOG.info("Completed setting up app master command " + command.toString());
-    List<String> commands = new ArrayList<String>();
-    commands.add(command.toString());
-    amContainer.setCommands(commands);
+    amContainer.setCommands(getAppMasterCommands());
 
     // Set up resource type requirements
     // For now, both memory and vcores are supported, so we set memory and
@@ -370,6 +325,72 @@ public class DockerClientV2 {
 
     return appId;
   }
+
+  private List<String> getAppMasterCommands() {
+    // Set the necessary command to execute the application master
+    List<String> vargs = new ArrayList<String>(30);
+
+    // Set java executable command
+    LOG.info("Setting up app master command");
+    vargs.add(ApplicationConstants.Environment.JAVA_HOME.$() + "/bin/java");
+    // Set Xmx based on am memory size
+    vargs.add("-Xmx" + amMemory + "m");
+
+    // Pass DistributedDockerConfiguration as Properties
+    for(Map.Entry<String, String> e: ddockerConf){
+      if(e.getKey().startsWith(DistributedDockerConfiguration.DDOCKER_PREFIX)){
+        vargs.add(String.format("-D%s=%s", e.getKey(), e.getValue() ));
+      }
+    }
+
+    // Set class name
+    vargs.add(appMasterMainClass);
+
+    // Set params for Application Master
+
+    vargs.add("-image");
+    vargs.add(dockerImage);
+    if (debugFlag) {
+      vargs.add("--debug");
+    }
+
+    vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stdout");
+    vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stderr");
+
+
+    return vargs;
+  }
+
+  private Map<String, String> getEnv() {
+    Map<String, String> env = new HashMap<String, String>();
+
+    // Add AppMaster.jar location to classpath
+    // At some point we should not be required to add
+    // the hadoop specific classpaths to the env.
+    // It should be provided out of the box.
+    // For now setting all required classpaths including
+    // the classpath to "." for the application jar
+    StringBuilder classPathEnv = new StringBuilder(ApplicationConstants.Environment.CLASSPATH.$())
+            .append(File.pathSeparatorChar).append("./*");
+    for (String c : yarnConf.getStrings(
+            YarnConfiguration.YARN_APPLICATION_CLASSPATH,
+            YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
+      classPathEnv.append(File.pathSeparatorChar);
+      classPathEnv.append(c.trim());
+    }
+    classPathEnv.append(File.pathSeparatorChar).append("./log4j.properties");
+
+    // add the runtime classpath needed for tests to work
+    if (yarnConf.getBoolean(YarnConfiguration.IS_MINI_YARN_CLUSTER, false)) {
+      classPathEnv.append(':');
+      classPathEnv.append(System.getProperty("java.class.path"));
+    }
+
+    env.put("JAVA_HOME", "/Library/Java/JavaVirtualMachines/jdk1.7.0_71.jdk/Contents/Home");
+    env.put("CLASSPATH", classPathEnv.toString());
+    return env;
+  }
+
   /**
    * Monitor the submitted application for completion.
    * Kill application if time expires.
@@ -476,7 +497,7 @@ public class DockerClientV2 {
     LocalResource scRsrc =
             LocalResource.newInstance(
                     ConverterUtils.getYarnUrlFromURI(dst.toUri()),
-                    LocalResourceType.FILE, LocalResourceVisibility.APPLICATION,
+                    LocalResourceType.FILE, LocalResourceVisibility.PUBLIC,
                     scFileStatus.getLen(), scFileStatus.getModificationTime());
     localResources.put(fileDstPath, scRsrc);
   }
@@ -510,6 +531,6 @@ public class DockerClientV2 {
   }
 
   private void printUsage() {
-    new HelpFormatter().printHelp("Docker on Yarn Client", opts);
+    new HelpFormatter().printHelp("[options] command [commandArgs]", opts);
   }
 }

@@ -2,6 +2,7 @@ package com.sogou.docker.client;
 
 import com.sogou.docker.client.docker.LocalDockerContainerRunner;
 import com.sogou.docker.client.docker.YarnDockerClientParam;
+import com.sogou.docker.client.model.DistributedDockerConfiguration;
 import org.apache.commons.cli.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -32,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.sogou.docker.client.Utils.checkNotEmpty;
+
 /**
  * The DockerRunnerApplicationMaster DONOT require more container from RM.
  * It only create and run a new container to docker service on the local host
@@ -61,39 +64,44 @@ public class DockerRunnerApplicationMaster {
   private String appHistoryTrackingUrlBase = "";
   // Hardcoded path to custom log_properties
   private static final String log4jPath = "log4j.properties";
-  private int requestPriority;
   protected AtomicInteger numRetryCount = new AtomicInteger();
 
   protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
 
-  private ByteBuffer allTokens;
 
   private LocalDockerContainerRunner localDockerContainerRunner ;
   private volatile boolean done;
 
   private String workingDirectory ;
-  private String runnerAbsolutePath;
+  private String dockerImage;
+  private String[] commandToRun;
 
   public String getRunnerAbsolutePath() {
     return workingDirectory + "/" + LOCAL_RUNNER_NAME;
   }
 
-  private static void checkNotEmpty(String v, String msg){
-    if(v == null || v.trim().isEmpty())
-      throw new IllegalArgumentException(msg);
-  }
 
   private YarnDockerClientParam buildYarnDockerClientParam() {
     YarnDockerClientParam p = new YarnDockerClientParam();
 
-    // TODO Get those param from yarn
-    p.cmdAndArgs = "echo Hello from docker on yarn".split("\\s+");
-    p.containerMemory = 512;
-    p.containerVirtualCores = 1;
+    DistributedDockerConfiguration dockerConf = new DistributedDockerConfiguration();
+
+    p.cmdAndArgs = commandToRun;
+    p.containerMemory = dockerConf.getInt(DistributedDockerConfiguration.CONTAINER_MEMORY,
+            DistributedDockerConfiguration.DEFAULT_CONTAINER_MEMORY);
+
+    p.containerVirtualCores = dockerConf.getInt(DistributedDockerConfiguration.CONTAINER_CORES,
+            DistributedDockerConfiguration.DEFAULT_CONTAINER_CORES);
+
     p.runnerScriptPath = getRunnerAbsolutePath();
-    p.dockerCertPath = "/Users/guoshiwei/.boot2docker/certs/boot2docker-vm";
-    p.dockerHost = "192.168.59.103:2376";
-    p.dockerImage = "registry.docker.dev.sogou-inc.com:5000/clouddev/sogou-rhel-base:6.5";
+
+    p.dockerCertPath = dockerConf.get(DistributedDockerConfiguration.DOCKER_CERT_PATH);
+    Utils.checkNotEmpty(p.dockerCertPath, DistributedDockerConfiguration.DOCKER_CERT_PATH + " Not given");
+
+    p.dockerHost = dockerConf.get(DistributedDockerConfiguration.DOCKER_HOST,
+            DistributedDockerConfiguration.DEFAULT_DOCKER_HOST);
+
+    p.dockerImage = this.dockerImage;
     return p;
   }
   public DockerRunnerApplicationMaster() {
@@ -153,7 +161,7 @@ public class DockerRunnerApplicationMaster {
         iter.remove();
       }
     }
-    allTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
+
 
     AMRMClientAsync.CallbackHandler allocListener = new RMCallbackHandler();
     amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, allocListener);
@@ -207,10 +215,11 @@ public class DockerRunnerApplicationMaster {
     Options opts = new Options();
     opts.addOption("priority", true, "Application Priority. Default 0");
     opts.addOption("container_retry", true, "Application container_retry. Default 3");
+    opts.addOption("image", true, "Docker image to run");
     opts.addOption("debug", false, "Dump out debug information");
 
     opts.addOption("help", false, "Print usage");
-    CommandLine cliParser = new GnuParser().parse(opts, args);
+    CommandLine cliParser = new GnuParser().parse(opts, args, true);
 
     //Check whether customer log4j.properties file exists
     if (fileExist(log4jPath)) {
@@ -269,12 +278,12 @@ public class DockerRunnerApplicationMaster {
             + appAttemptID.getApplicationId().getClusterTimestamp()
             + ", attemptId=" + appAttemptID.getAttemptId());
 
-
-    requestPriority = Integer.parseInt(cliParser
-            .getOptionValue("priority", "0"));
-
     this.MAX_RETRY_COUNT.set(Integer.parseInt(cliParser.getOptionValue(
             "container_retry", "3")));
+
+    dockerImage = cliParser.getOptionValue("image");
+    checkNotEmpty(dockerImage, "No image argument given");
+    commandToRun = cliParser.getArgs();
     return initDockerContainerRunner();
   }
 
@@ -349,7 +358,7 @@ public class DockerRunnerApplicationMaster {
   }
 
   private void printUsage(Options opts) {
-    new HelpFormatter().printHelp("ApplicationMaster", opts);
+    new HelpFormatter().printHelp("[options] command [commandArgs]", opts);
   }
 
   private class RMCallbackHandler implements AMRMClientAsync.CallbackHandler{
