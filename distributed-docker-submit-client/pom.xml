@@ -139,7 +139,7 @@
                     <arguments>
                         <argument>-cp</argument>
                         <classpath />
-                        <argument>com.sogou.docker.client.docker.YarnDockerClient</argument>
+                        <argument>com.sogou.dockeronyarn.appmaster.docker.YarnDockerClient</argument>
                         <argument>-container_memory</argument>
                         <argument>512</argument>
                         <argument>-container_vcores</argument>

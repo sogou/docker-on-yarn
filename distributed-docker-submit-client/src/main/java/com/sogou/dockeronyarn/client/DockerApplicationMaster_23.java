@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.sogou.dockeronyarn.service;
+package com.sogou.dockeronyarn.client;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
@@ -27,7 +27,6 @@ import java.io.StringReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -38,6 +37,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import com.sogou.dockeronyarn.common.DSConstants;
+import com.sogou.dockeronyarn.common.ExitCode;
+import com.sogou.dockeronyarn.common.Log4jPropertyHelper;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -46,18 +50,14 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
-import org.apache.hadoop.util.ExitUtil;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
@@ -83,11 +83,7 @@ import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
-import org.apache.hadoop.yarn.api.records.URL;
-import org.apache.hadoop.yarn.api.records.timeline.TimelineEntity;
-import org.apache.hadoop.yarn.api.records.timeline.TimelineEvent;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
-import org.apache.hadoop.yarn.client.api.TimelineClient;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.impl.NMClientAsyncImpl;
@@ -95,9 +91,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.security.AMRMTokenIdentifier;
 import org.apache.hadoop.yarn.util.ConverterUtils;
-import org.apache.log4j.LogManager;
-
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.yarn.util.Records;
 
 /**
  * An ApplicationMaster for executing shell commands on a set of launched
@@ -162,21 +156,9 @@ import com.google.common.annotations.VisibleForTesting;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Unstable
-public class DockerApplicationMaster_24 {
+public class DockerApplicationMaster_23 {
 
-  private static final Log LOG = LogFactory.getLog(DockerApplicationMaster_24.class);
-
-  @VisibleForTesting
-  @Private
-  public static enum DSEvent {
-    DS_APP_ATTEMPT_START, DS_APP_ATTEMPT_END, DS_CONTAINER_START, DS_CONTAINER_END
-  }
-  
-  @VisibleForTesting
-  @Private
-  public static enum DSEntity {
-    DS_APP_ATTEMPT, DS_CONTAINER
-  }
+  private static final Log LOG = LogFactory.getLog(DockerApplicationMaster_23.class);
 
   // Configuration
   private Configuration conf;
@@ -185,17 +167,13 @@ public class DockerApplicationMaster_24 {
   @SuppressWarnings("rawtypes")
   private AMRMClientAsync amRMClient;
 
-  // In both secure and non-secure modes, this points to the job-submitter.
-  private UserGroupInformation appSubmitterUgi;
-
   // Handle to communicate with the Node Manager
   private NMClientAsync nmClientAsync;
   // Listen to process the response from the Node Manager
   private NMCallbackHandler containerListener;
   
   // Application Attempt Id ( combination of attemptId and fail count )
-  @VisibleForTesting
-  protected ApplicationAttemptId appAttemptID;
+  private ApplicationAttemptId appAttemptID;
 
   // TODO
   // For status update for clients - yet to be implemented
@@ -208,8 +186,7 @@ public class DockerApplicationMaster_24 {
 
   // App Master configuration
   // No. of containers to run shell command on
-  @VisibleForTesting
-  protected int numTotalContainers = 1;
+  private int numTotalContainers = 1;
   // Memory to request for the container on which the shell command will run
   private int containerMemory = 10;
   // VirtualCores to request for the container on which the shell command will run
@@ -221,19 +198,13 @@ public class DockerApplicationMaster_24 {
   private AtomicInteger numCompletedContainers = new AtomicInteger();
   // Allocated container count so that we know how many containers has the RM
   // allocated to us
-  @VisibleForTesting
-  protected AtomicInteger numAllocatedContainers = new AtomicInteger();
+  private AtomicInteger numAllocatedContainers = new AtomicInteger();
   // Count of failed containers
   private AtomicInteger numFailedContainers = new AtomicInteger();
   // Count of containers already requested from the RM
   // Needed as once requested, we should not request for containers again.
   // Only request for more if the original requirement changes.
-  @VisibleForTesting
-  protected AtomicInteger numRequestedContainers = new AtomicInteger();
-  
-  protected AtomicInteger numRetryCount = new AtomicInteger();
-  
-  protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
+  //private AtomicInteger numRequestedContainers = new AtomicInteger();
 
   // Shell command to be executed
   private String shellCommand = "";
@@ -244,15 +215,15 @@ public class DockerApplicationMaster_24 {
 
   // Location of shell script ( obtained from info set in env )
   // Shell script path in fs
-  private String scriptPath = "";
+  private String shellScriptPath = "";
   // Timestamp needed for creating a local resource
   private long shellScriptPathTimestamp = 0;
   // File length needed for local resource
   private long shellScriptPathLen = 0;
 
   // Hardcoded path to shell script in launch container's local env
-  private static final String ExecShellStringPath = DockerClient.SCRIPT_PATH;
-  private static final String ExecBatScripStringtPath = DockerClient.SCRIPT_PATH;
+  private static final String ExecShellStringPath = "ExecShellScript.sh";
+  private static final String ExecBatScripStringtPath = "ExecBatScript.bat";
 
   // Hardcoded path to custom log_properties
   private static final String log4jPath = "log4j.properties";
@@ -261,36 +232,38 @@ public class DockerApplicationMaster_24 {
   private static final String shellArgsPath = "shellArgs";
 
   private volatile boolean done;
+  private volatile boolean success;
 
   private ByteBuffer allTokens;
 
   // Launch threads
   private List<Thread> launchThreads = new ArrayList<Thread>();
 
-  // Timeline Client
-  private TimelineClient timelineClient;
-
   private final String linux_bash_command = "bash";
   private final String windows_command = "cmd /c";
-
+  
+  protected AtomicInteger numRetryCount = new AtomicInteger();
+  
+  protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
+  
+  //private volatile ArrayBlockingQueue<Container> allocatedContainerQueue;
+  //protected AtomicInteger runningDocker = new AtomicInteger(0);
   /**
    * @param args Command line args
    */
   public static void main(String[] args) {
     boolean result = false;
     try {
-      DockerApplicationMaster_24 appMaster = new DockerApplicationMaster_24();
+      DockerApplicationMaster_23 appMaster = new DockerApplicationMaster_23();
       LOG.info("Initializing ApplicationMaster");
       boolean doRun = appMaster.init(args);
       if (!doRun) {
         System.exit(0);
       }
-      appMaster.run();
-      result = appMaster.finish();
+      result = appMaster.run();
     } catch (Throwable t) {
       LOG.fatal("Error running ApplicationMaster", t);
-      LogManager.shutdown();
-      ExitUtil.terminate(1, t);
+      System.exit(1);
     }
     if (result) {
       LOG.info("Application Master completed successfully. exiting");
@@ -331,7 +304,7 @@ public class DockerApplicationMaster_24 {
     }
   }
 
-  public DockerApplicationMaster_24() {
+  public DockerApplicationMaster_23() {
     // Set up the configuration
     conf = new YarnConfiguration();
   }
@@ -345,6 +318,7 @@ public class DockerApplicationMaster_24 {
    * @throws IOException
    */
   public boolean init(String[] args) throws ParseException, IOException {
+
     Options opts = new Options();
     opts.addOption("app_attempt_id", true,
         "App Attempt ID. Not to be used unless for testing purposes");
@@ -372,8 +346,8 @@ public class DockerApplicationMaster_24 {
     //Check whether customer log4j.properties file exists
     if (fileExist(log4jPath)) {
       try {
-        Log4jPropertyHelper.updateLog4jConfiguration(DockerApplicationMaster_24.class,
-            log4jPath);
+        Log4jPropertyHelper.updateLog4jConfiguration(DockerApplicationMaster_23.class,
+                log4jPath);
       } catch (Exception e) {
         LOG.warn("Can not set up custom log4j properties. " + e);
       }
@@ -459,7 +433,7 @@ public class DockerApplicationMaster_24 {
     }
 
     if (envs.containsKey(DSConstants.DISTRIBUTEDSHELLSCRIPTLOCATION)) {
-      scriptPath = envs.get(DSConstants.DISTRIBUTEDSHELLSCRIPTLOCATION);
+      shellScriptPath = envs.get(DSConstants.DISTRIBUTEDSHELLSCRIPTLOCATION);
 
       if (envs.containsKey(DSConstants.DISTRIBUTEDSHELLSCRIPTTIMESTAMP)) {
         shellScriptPathTimestamp = Long.valueOf(envs
@@ -470,10 +444,10 @@ public class DockerApplicationMaster_24 {
             .get(DSConstants.DISTRIBUTEDSHELLSCRIPTLEN));
       }
 
-      if (!scriptPath.isEmpty()
+      if (!shellScriptPath.isEmpty()
           && (shellScriptPathTimestamp <= 0 || shellScriptPathLen <= 0)) {
         LOG.error("Illegal values in env for shell script path" + ", path="
-            + scriptPath + ", len=" + shellScriptPathLen + ", timestamp="
+            + shellScriptPath + ", len=" + shellScriptPathLen + ", timestamp="
             + shellScriptPathTimestamp);
         throw new IllegalArgumentException(
             "Illegal values in env for shell script path");
@@ -495,11 +469,8 @@ public class DockerApplicationMaster_24 {
     
     this.MAX_RETRY_COUNT.set(Integer.parseInt(cliParser.getOptionValue(
             "container_retry", "3")));
-
-    // Creating the Timeline Client
-    timelineClient = TimelineClient.createTimelineClient();
-    timelineClient.init(conf);
-    timelineClient.start();
+    
+    //allocatedContainerQueue = new ArrayBlockingQueue(MAX_RETRY_COUNT.get());
 
     return true;
   }
@@ -520,40 +491,22 @@ public class DockerApplicationMaster_24 {
    * @throws IOException
    */
   @SuppressWarnings({ "unchecked" })
-  public void run() throws YarnException, IOException {
+  public boolean run() throws YarnException, IOException {
     LOG.info("Starting ApplicationMaster");
-    try {
-      publishApplicationAttemptEvent(timelineClient, appAttemptID.toString(),
-          DSEvent.DS_APP_ATTEMPT_START);
-    } catch (Exception e) {
-      LOG.error("App Attempt start event coud not be pulished for "
-          + appAttemptID.toString(), e);
-    }
 
-    // Note: Credentials, Token, UserGroupInformation, DataOutputBuffer class
-    // are marked as LimitedPrivate
     Credentials credentials =
         UserGroupInformation.getCurrentUser().getCredentials();
     DataOutputBuffer dob = new DataOutputBuffer();
     credentials.writeTokenStorageToStream(dob);
     // Now remove the AM->RM token so that containers cannot access it.
     Iterator<Token<?>> iter = credentials.getAllTokens().iterator();
-    LOG.info("Executing with tokens:");
     while (iter.hasNext()) {
       Token<?> token = iter.next();
-      LOG.info(token);
       if (token.getKind().equals(AMRMTokenIdentifier.KIND_NAME)) {
         iter.remove();
       }
     }
     allTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
-
-    // Create appSubmitterUgi and add original tokens to it
-    String appSubmitterUserName =
-        System.getenv(ApplicationConstants.Environment.USER.name());
-    appSubmitterUgi =
-        UserGroupInformation.createRemoteUser(appSubmitterUserName);
-    appSubmitterUgi.addCredentials(credentials);
 
     AMRMClientAsync.CallbackHandler allocListener = new RMCallbackHandler();
     amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, allocListener);
@@ -600,33 +553,27 @@ public class DockerApplicationMaster_24 {
       containerVirtualCores = maxVCores;
     }
 
-    List<Container> previousAMRunningContainers =
-        response.getContainersFromPreviousAttempts();
-    LOG.info(appAttemptID + " received " + previousAMRunningContainers.size()
-      + " previous attempts' running containers on AM registration.");
-    numAllocatedContainers.addAndGet(previousAMRunningContainers.size());
-
-    int numTotalContainersToRequest =
-        numTotalContainers - previousAMRunningContainers.size();
     // Setup ask for containers from RM
     // Send request for containers to RM
     // Until we get our fully allocated quota, we keep on polling RM for
     // containers
     // Keep looping until all the containers are launched and shell script
     // executed on them ( regardless of success/failure).
-    for (int i = 0; i < numTotalContainersToRequest; ++i) {
+    for (int i = 0; i < numTotalContainers; ++i) {
       ContainerRequest containerAsk = setupContainerAskForRM();
       amRMClient.addContainerRequest(containerAsk);
     }
-    numRequestedContainers.set(numTotalContainers);
-    try {
-      publishApplicationAttemptEvent(timelineClient, appAttemptID.toString(),
-          DSEvent.DS_APP_ATTEMPT_END);
-    } catch (Exception e) {
-      LOG.error("App Attempt start event coud not be pulished for "
-          + appAttemptID.toString(), e);
+    //numRequestedContainers.set(numTotalContainers);
+
+    while (!done
+        && (numCompletedContainers.get() != numTotalContainers)) {
+      try {
+        Thread.sleep(200);
+      } catch (InterruptedException ex) {}
     }
-    numRetryCount.set(0);
+    finish();
+    
+    return success;
   }
 
   @VisibleForTesting
@@ -634,16 +581,7 @@ public class DockerApplicationMaster_24 {
     return new NMCallbackHandler(this);
   }
 
-  @VisibleForTesting
-  protected boolean finish() {
-    // wait for completion.
-    while (!done
-        && (numCompletedContainers.get() != numTotalContainers)) {
-      try {
-        Thread.sleep(200);
-      } catch (InterruptedException ex) {}
-    }
-
+  private void finish() {
     // Join all launched threads
     // needed for when we time out
     // and we need to release containers
@@ -666,7 +604,7 @@ public class DockerApplicationMaster_24 {
 
     FinalApplicationStatus appStatus;
     String appMessage = null;
-    boolean success = true;
+    success = true;
     if (numFailedContainers.get() == 0 && 
         numCompletedContainers.get() == numTotalContainers) {
       appStatus = FinalApplicationStatus.SUCCEEDED;
@@ -687,74 +625,69 @@ public class DockerApplicationMaster_24 {
     }
     
     amRMClient.stop();
-
-    return success;
   }
   
   private class RMCallbackHandler implements AMRMClientAsync.CallbackHandler {
     @SuppressWarnings("unchecked")
-
     @Override
     public void onContainersCompleted(List<ContainerStatus> completedContainers) {
       LOG.info("Got response from RM for container ask, completedCnt="
           + completedContainers.size());
       for (ContainerStatus containerStatus : completedContainers) {
-        LOG.info(appAttemptID + " got container status for containerID="
+        LOG.info("Got container status for containerID="
             + containerStatus.getContainerId() + ", state="
             + containerStatus.getState() + ", exitStatus="
             + containerStatus.getExitStatus() + ", diagnostics="
             + containerStatus.getDiagnostics());
-
+       
         // non complete containers should not be here
         assert (containerStatus.getState() == ContainerState.COMPLETE);
 
         // increment counters for completed/failed containers
         int exitStatus = containerStatus.getExitStatus();
         if (0 != exitStatus) {
-          // container failed
-          if (ContainerExitStatus.ABORTED != exitStatus && ContainerExitStatus.PREEMPTED != exitStatus) {
-            // shell script failed
-            // counts as completed
-        	if((ExitCode.TIMEOUT.getValue() == exitStatus || ExitCode.CONTAINER_NOT_CREATE.getValue() == exitStatus ||  ExitCode.KILLED.getValue() == exitStatus) && ((numRetryCount.get()) < MAX_RETRY_COUNT.get())){
-        		numRetryCount.addAndGet(1);
-        		numAllocatedContainers.decrementAndGet();
-                numRequestedContainers.decrementAndGet();
-        	}else{
-        		numCompletedContainers.incrementAndGet();
-                numFailedContainers.incrementAndGet();
-        	}
-            
-            
+            // container failed
+            if (ContainerExitStatus.ABORTED != exitStatus && ContainerExitStatus.PREEMPTED != exitStatus) {
+              // shell script failed
+              // counts as completed
+          	if((ExitCode.TIMEOUT.getValue() == exitStatus || ExitCode.CONTAINER_NOT_CREATE.getValue() == exitStatus ||  ExitCode.KILLED.getValue() == exitStatus) && ((numRetryCount.get()) < MAX_RETRY_COUNT.get())){
+          			numRetryCount.addAndGet(1);
+          			numAllocatedContainers.decrementAndGet();
+                    //numRequestedContainers.decrementAndGet();
+          	}else{
+          		 numCompletedContainers.incrementAndGet();
+                  numFailedContainers.incrementAndGet();
+          	}
+              
+              
+            } else {
+              // container was killed by framework, possibly preempted
+              // we should re-try as the container was lost for some reason
+            		  numAllocatedContainers.decrementAndGet();
+                      //numRequestedContainers.decrementAndGet();
+
+              // we do not need to release the container as it would be done
+              // by the RM
+            }
+            LOG.info("Container fail to completed successfully." + ", containerId="
+                    + containerStatus.getContainerId() + " status: " + exitStatus + " retry num: " + numRetryCount.get());
           } else {
-            // container was killed by framework, possibly preempted
-            // we should re-try as the container was lost for some reason
-        		  numAllocatedContainers.decrementAndGet();
-                  numRequestedContainers.decrementAndGet();
-            // we do not need to release the container as it would be done
-            // by the RM
+            // nothing to do
+            // container completed successfully
+            numCompletedContainers.incrementAndGet();
+            LOG.info("Container completed successfully." + ", containerId="
+                + containerStatus.getContainerId());
           }
-          LOG.info("Container fail to completed successfully." + ", containerId="
-                  + containerStatus.getContainerId() + " status: " + exitStatus + " retry num: " + numRetryCount.get());
-        } else {
-          // nothing to do
-          // container completed successfully
-          numCompletedContainers.incrementAndGet();
-          LOG.info("Container completed successfully." + ", containerId="
-              + containerStatus.getContainerId());
-        }
-        try {
-          publishContainerEndEvent(timelineClient, containerStatus);
-        } catch (Exception e) {
-          LOG.error("Container start event could not be pulished for "
-              + containerStatus.getContainerId().toString(), e);
-        }
       }
-      
-      // ask for more containers if any failed
-      int askCount = numTotalContainers - numRequestedContainers.get();
-      numRequestedContainers.addAndGet(askCount);
-      LOG.info("Container failed. and ask for " + askCount +" container");
+     
+       //ask for more containers if any failed
+
+      int askCount =  numTotalContainers - numAllocatedContainers.get();   
+     
+      LOG.info("ask Container ." + ", num="
+              + askCount);
       if (askCount > 0) {
+    	  //numRequestedContainers.addAndGet(askCount);
         for (int i = 0; i < askCount; ++i) {
           ContainerRequest containerAsk = setupContainerAskForRM();
           amRMClient.addContainerRequest(containerAsk);
@@ -770,34 +703,43 @@ public class DockerApplicationMaster_24 {
     public void onContainersAllocated(List<Container> allocatedContainers) {
       LOG.info("Got response from RM for container ask, allocatedCnt="
           + allocatedContainers.size());
-      if(numAllocatedContainers.get() + allocatedContainers.size() > numTotalContainers){
-    	  LOG.info("total containers have been allocated");
-    	  return;
-      }
+//      if(numAllocatedContainers.get() + allocatedContainers.size() > numTotalContainers){
+//    	  LOG.info("total containers have been allocated");
+//    	  return;
+//      }
+     
       numAllocatedContainers.addAndGet(allocatedContainers.size());
+      int k = 0;
       for (Container allocatedContainer : allocatedContainers) {
-        LOG.info("Launching shell command on a new container."
-            + ", containerId=" + allocatedContainer.getId()
-            + ", containerNode=" + allocatedContainer.getNodeId().getHost()
-            + ":" + allocatedContainer.getNodeId().getPort()
-            + ", containerNodeURI=" + allocatedContainer.getNodeHttpAddress()
-            + ", containerResourceMemory"
-            + allocatedContainer.getResource().getMemory()
-            + ", containerResourceVirtualCores"
-            + allocatedContainer.getResource().getVirtualCores());
-        // + ", containerToken"
-        // +allocatedContainer.getContainerToken().getIdentifier().toString());
+    	  k ++;
+    	  if(k > 1){
+    		  amRMClient.releaseAssignedContainer(allocatedContainer.getId());
+    		  continue;
+    	  }
+    	  LOG.info("Launching shell command on a new container."
+    	            + ", containerId=" + allocatedContainer.getId()
+    	            + ", containerNode=" + allocatedContainer.getNodeId().getHost()
+    	            + ":" + allocatedContainer.getNodeId().getPort()
+    	            + ", containerNodeURI=" + allocatedContainer.getNodeHttpAddress()
+    	            + ", containerResourceMemory"
+    	            + allocatedContainer.getResource().getMemory()
+    	            + ", containerResourceVirtualCores"
+    	            + allocatedContainer.getResource().getVirtualCores());
+    	        // + ", containerToken"
+    	        // +allocatedContainer.getContainerToken().getIdentifier().toString());
 
-        LaunchContainerRunnable runnableLaunchContainer =
-            new LaunchContainerRunnable(allocatedContainer, containerListener);
-        Thread launchThread = new Thread(runnableLaunchContainer);
+    	        LaunchContainerRunnable runnableLaunchContainer =
+    	            new LaunchContainerRunnable(allocatedContainer, containerListener);
+    	        Thread launchThread = new Thread(runnableLaunchContainer);
 
-        // launch and start the container on a separate thread to keep
-        // the main thread unblocked
-        // as all containers may not be allocated at one go.
-        launchThreads.add(launchThread);
-        launchThread.start();
+    	        // launch and start the container on a separate thread to keep
+    	        // the main thread unblocked
+    	        // as all containers may not be allocated at one go.
+    	        launchThreads.add(launchThread);
+    	        launchThread.start();
+    	        
       }
+     
     }
 
     @Override
@@ -829,9 +771,9 @@ public class DockerApplicationMaster_24 {
 
     private ConcurrentMap<ContainerId, Container> containers =
         new ConcurrentHashMap<ContainerId, Container>();
-    private final DockerApplicationMaster_24 applicationMaster;
+    private final DockerApplicationMaster_23 applicationMaster;
 
-    public NMCallbackHandler(DockerApplicationMaster_24 applicationMaster) {
+    public NMCallbackHandler(DockerApplicationMaster_23 applicationMaster) {
       this.applicationMaster = applicationMaster;
     }
 
@@ -866,23 +808,14 @@ public class DockerApplicationMaster_24 {
       if (container != null) {
         applicationMaster.nmClientAsync.getContainerStatusAsync(containerId, container.getNodeId());
       }
-      try {
-        DockerApplicationMaster_24.publishContainerStartEvent(
-            applicationMaster.timelineClient, container);
-      } catch (Exception e) {
-        LOG.error("Container start event coud not be pulished for "
-            + container.getId().toString(), e);
-      }
     }
 
     @Override
     public void onStartContainerError(ContainerId containerId, Throwable t) {
       LOG.error("Failed to start Container " + containerId);
       containers.remove(containerId);
-      applicationMaster.numAllocatedContainers.decrementAndGet();
-      applicationMaster.numRequestedContainers.decrementAndGet();
-      //applicationMaster.numCompletedContainers.incrementAndGet();
-      //applicationMaster.numFailedContainers.incrementAndGet();
+      applicationMaster.numCompletedContainers.incrementAndGet();
+      applicationMaster.numFailedContainers.incrementAndGet();
     }
 
     @Override
@@ -928,6 +861,11 @@ public class DockerApplicationMaster_24 {
     public void run() {
       LOG.info("Setting up container launch container for containerid="
           + container.getId());
+      ContainerLaunchContext ctx = Records
+          .newRecord(ContainerLaunchContext.class);
+
+      // Set the environment
+      ctx.setEnvironment(shellEnv);
 
       // Set the local resources
       Map<String, LocalResource> localResources = new HashMap<String, LocalResource>();
@@ -936,35 +874,18 @@ public class DockerApplicationMaster_24 {
       // resources too.
       // In this scenario, if a shell script is specified, we need to have it
       // copied and made available to the container.
-      if (!scriptPath.isEmpty()) {
-        Path renamedScriptPath = null;
-        if (Shell.WINDOWS) {
-          renamedScriptPath = new Path(scriptPath);
-        } else {
-          renamedScriptPath = new Path(scriptPath);
-        }
-
-//        try {
-//          //rename the script file based on the underlying OS syntax.
-//          renameScriptFile(renamedScriptPath);
-//        } catch (Exception e) {
-//          LOG.error(
-//              "Not able to add suffix (.bat/.sh) to the shell script filename",
-//              e);
-//          // We know we cannot continue launching the container
-//          // so we should release it.
-//          numCompletedContainers.incrementAndGet();
-//          numFailedContainers.incrementAndGet();
-//          return;
-//        }
-
-        URL yarnUrl = null;
+      if (!shellScriptPath.isEmpty()) {
+        LocalResource shellRsrc = Records.newRecord(LocalResource.class);
+        shellRsrc.setType(LocalResourceType.FILE);
+        shellRsrc.setVisibility(LocalResourceVisibility.APPLICATION);
         try {
-          yarnUrl = ConverterUtils.getYarnUrlFromURI(
-            new URI(renamedScriptPath.toString()));
+          shellRsrc.setResource(ConverterUtils.getYarnUrlFromURI(new URI(
+              shellScriptPath)));
         } catch (URISyntaxException e) {
           LOG.error("Error when trying to use shell script path specified"
-              + " in env, path=" + renamedScriptPath, e);
+              + " in env, path=" + shellScriptPath);
+          e.printStackTrace();
+
           // A failure scenario on bad input such as invalid shell script path
           // We know we cannot continue launching the container
           // so we should release it.
@@ -973,13 +894,13 @@ public class DockerApplicationMaster_24 {
           numFailedContainers.incrementAndGet();
           return;
         }
-        LocalResource shellRsrc = LocalResource.newInstance(yarnUrl,
-          LocalResourceType.FILE, LocalResourceVisibility.APPLICATION,
-          shellScriptPathLen, shellScriptPathTimestamp);
+        shellRsrc.setTimestamp(shellScriptPathTimestamp);
+        shellRsrc.setSize(shellScriptPathLen);
         localResources.put(Shell.WINDOWS ? ExecBatScripStringtPath :
             ExecShellStringPath, shellRsrc);
         shellCommand = Shell.WINDOWS ? windows_command : linux_bash_command;
       }
+      ctx.setLocalResources(localResources);
 
       // Set the necessary command to execute on the allocated container
       Vector<CharSequence> vargs = new Vector<CharSequence>(5);
@@ -987,7 +908,7 @@ public class DockerApplicationMaster_24 {
       // Set executable command
       vargs.add(shellCommand);
       // Set shell script path
-      if (!scriptPath.isEmpty()) {
+      if (!shellScriptPath.isEmpty()) {
         vargs.add(Shell.WINDOWS ? ExecBatScripStringtPath
             : ExecShellStringPath);
       }
@@ -1006,36 +927,22 @@ public class DockerApplicationMaster_24 {
 
       List<String> commands = new ArrayList<String>();
       commands.add(command.toString());
+      ctx.setCommands(commands);
 
-      // Set up ContainerLaunchContext, setting local resource, environment,
-      // command and token for constructor.
+      // Set up tokens for the container too. Today, for normal shell commands,
+      // the container in distribute-shell doesn't need any tokens. We are
+      // populating them mainly for NodeManagers to be able to download any
+      // files in the distributed file-system. The tokens are otherwise also
+      // useful in cases, for e.g., when one is running a "hadoop dfs" command
+      // inside the distributed shell.
+      ctx.setTokens(allTokens.duplicate());
 
-      // Note for tokens: Set up tokens for the container too. Today, for normal
-      // shell commands, the container in distribute-shell doesn't need any
-      // tokens. We are populating them mainly for NodeManagers to be able to
-      // download anyfiles in the distributed file-system. The tokens are
-      // otherwise also useful in cases, for e.g., when one is running a
-      // "hadoop dfs" command inside the distributed shell.
-      ContainerLaunchContext ctx = ContainerLaunchContext.newInstance(
-        localResources, shellEnv, commands, null, allTokens.duplicate(), null);
       containerListener.addContainer(container.getId(), container);
       nmClientAsync.startContainerAsync(container, ctx);
     }
   }
-
-  private void renameScriptFile(final Path renamedScriptPath)
-      throws IOException, InterruptedException {
-    appSubmitterUgi.doAs(new PrivilegedExceptionAction<Void>() {
-      @Override
-      public Void run() throws IOException {
-        FileSystem fs = renamedScriptPath.getFileSystem(conf);
-        fs.rename(new Path(scriptPath), renamedScriptPath);
-        return null;
-      }
-    });
-    LOG.info("User " + appSubmitterUgi.getUserName()
-        + " added suffix(.sh/.bat) to script file as " + renamedScriptPath);
-  }
+  
+  
 
   /**
    * Setup the request that will be sent to the RM for the container ask.
@@ -1046,13 +953,15 @@ public class DockerApplicationMaster_24 {
     // setup requirements for hosts
     // using * as any host will do for the distributed shell app
     // set the priority for the request
+    Priority pri = Records.newRecord(Priority.class);
     // TODO - what is the range for priority? how to decide?
-    Priority pri = Priority.newInstance(requestPriority);
+    pri.setPriority(requestPriority);
 
     // Set up resource type requirements
     // For now, memory and CPU are supported so we set memory and cpu requirements
-    Resource capability = Resource.newInstance(containerMemory,
-      containerVirtualCores);
+    Resource capability = Records.newRecord(Resource.class);
+    capability.setMemory(containerMemory);
+    capability.setVirtualCores(containerVirtualCores);
 
     ContainerRequest request = new ContainerRequest(capability, null, null,
         pri);
@@ -1072,55 +981,5 @@ public class DockerApplicationMaster_24 {
     } finally {
       org.apache.commons.io.IOUtils.closeQuietly(ds);
     }
-  }
-  
-  private static void publishContainerStartEvent(TimelineClient timelineClient,
-      Container container) throws IOException, YarnException {
-    TimelineEntity entity = new TimelineEntity();
-    entity.setEntityId(container.getId().toString());
-    entity.setEntityType(DSEntity.DS_CONTAINER.toString());
-    entity.addPrimaryFilter("user",
-        UserGroupInformation.getCurrentUser().getShortUserName());
-    TimelineEvent event = new TimelineEvent();
-    event.setTimestamp(System.currentTimeMillis());
-    event.setEventType(DSEvent.DS_CONTAINER_START.toString());
-    event.addEventInfo("Node", container.getNodeId().toString());
-    event.addEventInfo("Resources", container.getResource().toString());
-    entity.addEvent(event);
-
-    timelineClient.putEntities(entity);
-  }
-
-  private static void publishContainerEndEvent(TimelineClient timelineClient,
-      ContainerStatus container) throws IOException, YarnException {
-    TimelineEntity entity = new TimelineEntity();
-    entity.setEntityId(container.getContainerId().toString());
-    entity.setEntityType(DSEntity.DS_CONTAINER.toString());
-    entity.addPrimaryFilter("user",
-        UserGroupInformation.getCurrentUser().getShortUserName());
-    TimelineEvent event = new TimelineEvent();
-    event.setTimestamp(System.currentTimeMillis());
-    event.setEventType(DSEvent.DS_CONTAINER_END.toString());
-    event.addEventInfo("State", container.getState().name());
-    event.addEventInfo("Exit Status", container.getExitStatus());
-    entity.addEvent(event);
-
-    timelineClient.putEntities(entity);
-  }
-
-  private static void publishApplicationAttemptEvent(
-      TimelineClient timelineClient, String appAttemptId, DSEvent appEvent)
-      throws IOException, YarnException {
-    TimelineEntity entity = new TimelineEntity();
-    entity.setEntityId(appAttemptId);
-    entity.setEntityType(DSEntity.DS_APP_ATTEMPT.toString());
-    entity.addPrimaryFilter("user",
-        UserGroupInformation.getCurrentUser().getShortUserName());
-    TimelineEvent event = new TimelineEvent();
-    event.setEventType(appEvent.toString());
-    event.setTimestamp(System.currentTimeMillis());
-    entity.addEvent(event);
-
-    timelineClient.putEntities(entity);
   }
 }
