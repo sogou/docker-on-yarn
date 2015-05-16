@@ -365,34 +365,28 @@ public class DockerRunnerApplicationMaster {
 
   private class RMCallbackHandler implements AMRMClientAsync.CallbackHandler{
 
-    @Override
     public void onContainersCompleted(List<ContainerStatus> list) {
       // Nothing to do since we do not require more container
     }
 
-    @Override
     public void onContainersAllocated(List<Container> list) {
       // Nothing to do since we do not require more container
     }
 
-    @Override
     public void onShutdownRequest() {
       done = true;
       localDockerContainerRunner.stop();
     }
 
-    @Override
     public void onNodesUpdated(List<NodeReport> list) {
       // Nothing to do since we do not require more container
     }
 
-    @Override
     public float getProgress() {
 
       return localDockerContainerRunner.getProgress();
     }
 
-    @Override
     public void onError(Throwable throwable) {
       done = true;
       localDockerContainerRunner.stop();
