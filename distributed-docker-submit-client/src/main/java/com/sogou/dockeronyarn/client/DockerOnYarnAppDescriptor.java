@@ -21,36 +21,37 @@ public class DockerOnYarnAppDescriptor {
   private int container_retry = 3;
   private String commandToRun;
 
-  public void setAppName(String appName) {
+  public DockerOnYarnAppDescriptor setAppName(String appName) {
     this.appName = appName;
+    return this;
   }
 
-  public void setAmPriority(int amPriority) {
-    this.amPriority = amPriority;
+  public DockerOnYarnAppDescriptor setAmPriority(int amPriority) {
+    this.amPriority = amPriority; return this;
   }
 
-  public void setAmQueue(String amQueue) {
-    this.amQueue = amQueue;
+  public DockerOnYarnAppDescriptor setAmQueue(String amQueue) {
+    this.amQueue = amQueue; return this;
   }
 
-  public void setContainer_retry(int container_retry) {
-    this.container_retry = container_retry;
+  public DockerOnYarnAppDescriptor setContainer_retry(int container_retry) {
+    this.container_retry = container_retry; return this;
   }
 
-  public void setLog4jPropFile(String log4jPropFile) {
-    this.log4jPropFile = log4jPropFile;
+  public DockerOnYarnAppDescriptor setLog4jPropFile(String log4jPropFile) {
+    this.log4jPropFile = log4jPropFile; return this;
   }
 
-  public void setClientTimeout(long clientTimeout) {
-    this.clientTimeout = clientTimeout;
+  public DockerOnYarnAppDescriptor setClientTimeout(long clientTimeout) {
+    this.clientTimeout = clientTimeout; return this;
   }
 
-  public void setDockerImage(String dockerImage) {
-    this.dockerImage = dockerImage;
+  public DockerOnYarnAppDescriptor setDockerImage(String dockerImage) {
+    this.dockerImage = dockerImage; return this;
   }
 
-  public void setCommandToRun(String commandToRun) {
-    this.commandToRun = commandToRun;
+  public DockerOnYarnAppDescriptor setCommandToRun(String commandToRun) {
+    this.commandToRun = commandToRun; return this;
   }
 
   public long getClientStartTime() {

@@ -15,6 +15,7 @@
     <modules>
         <module>distributed-docker-submit-server</module>
         <module>distributed-docker-submit-client</module>
+        <module>distributed-docker-appmaster</module>
     </modules>
     <repositories>
         <repository>

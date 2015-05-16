@@ -1,6 +1,5 @@
 package com.sogou.dockeronyarn.appmaster;
 
-import com.sogou.dockeronyarn.client.DockerApplicationMaster_23;
 import com.sogou.dockeronyarn.common.Log4jPropertyHelper;
 import com.sogou.dockeronyarn.common.Utils;
 import com.sogou.dockeronyarn.appmaster.docker.LocalDockerContainerRunner;
@@ -226,7 +225,7 @@ public class DockerRunnerApplicationMaster {
     //Check whether customer log4j.properties file exists
     if (fileExist(log4jPath)) {
       try {
-        Log4jPropertyHelper.updateLog4jConfiguration(DockerApplicationMaster_23.class,
+        Log4jPropertyHelper.updateLog4jConfiguration(DockerRunnerApplicationMaster.class,
                 log4jPath);
       } catch (Exception e) {
         LOG.warn("Can not set up custom log4j properties. " + e);

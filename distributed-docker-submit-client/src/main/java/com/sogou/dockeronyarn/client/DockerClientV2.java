@@ -37,10 +37,10 @@ public class DockerClientV2 {
   private static final Log LOG = LogFactory.getLog(DockerClientV2.class);
 
   // Configuration
-  private Configuration yarnConf;
+  private final Configuration yarnConf;
 
-  private DistributedDockerConfiguration ddockerConf;
-  private YarnClient yarnClient;
+  private final DistributedDockerConfiguration ddockerConf;
+  private final YarnClient yarnClient;
 
   // Hardcoded path to custom log_properties
   private static final String log4jHdfsPath = "log4j.properties";
