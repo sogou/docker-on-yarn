@@ -1,8 +1,8 @@
 package com.sogou.dockeronyarn.appmaster;
 
+import com.sogou.dockeronyarn.appmaster.docker.YarnDockerClient;
 import com.sogou.dockeronyarn.common.Log4jPropertyHelper;
 import com.sogou.dockeronyarn.common.Utils;
-import com.sogou.dockeronyarn.appmaster.docker.LocalDockerContainerRunner;
 import com.sogou.dockeronyarn.appmaster.docker.YarnDockerClientParam;
 import com.sogou.dockeronyarn.common.DistributedDockerConfiguration;
 import org.apache.commons.cli.*;
@@ -70,7 +70,7 @@ public class DockerRunnerApplicationMaster {
   protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
 
 
-  private LocalDockerContainerRunner localDockerContainerRunner ;
+  private YarnDockerClient yarnDockerClient;
   private volatile boolean done;
 
   private String workingDirectory ;
@@ -184,20 +184,14 @@ public class DockerRunnerApplicationMaster {
     LOG.info("Max vcores capabililty of resources in this cluster " + maxVCores);
 
     try{
-      localDockerContainerRunner.run();
-      Thread.sleep(10* 1000);
-
-//      while (!done && !localDockerContainerRunner.isFinshed()) {
-//        try {
-//          Thread.sleep(200);
-//        } catch (InterruptedException ex) {}
-//      }
+      yarnDockerClient.startContainer();
+      yarnDockerClient.waitContainerExit();
     }
     catch (Exception e){
-      LOG.error("localDockerContainerRunner exited with exception: " + e.getMessage(), e);
+      LOG.error("yarnDockerClient exited with exception: " + e.getMessage(), e);
     }
     finally {
-      localDockerContainerRunner.ensureContainerRemoved();
+      yarnDockerClient.finish();
     }
 
     return finish();
@@ -289,7 +283,7 @@ public class DockerRunnerApplicationMaster {
   }
 
   private boolean initDockerContainerRunner() {
-    this.localDockerContainerRunner = new LocalDockerContainerRunner(buildYarnDockerClientParam());
+    this.yarnDockerClient = new YarnDockerClient(buildYarnDockerClientParam());
     return true;
   }
 
@@ -331,12 +325,12 @@ public class DockerRunnerApplicationMaster {
     FinalApplicationStatus appStatus;
     String appMessage = null;
     boolean success = true;
-    if (localDockerContainerRunner.getExitStatus()  == 0) {
+    if (yarnDockerClient.getExitStatus()  == 0) {
       appStatus = FinalApplicationStatus.SUCCEEDED;
     } else {
       appStatus = FinalApplicationStatus.FAILED;
       appMessage = "Diagnostics." + ", docker Container exited code: " +
-      localDockerContainerRunner.getExitStatus();
+      yarnDockerClient.getExitStatus();
       success = false;
     }
 
@@ -374,7 +368,7 @@ public class DockerRunnerApplicationMaster {
 
     public void onShutdownRequest() {
       done = true;
-      localDockerContainerRunner.stop();
+      yarnDockerClient.stop();
     }
 
     public void onNodesUpdated(List<NodeReport> list) {
@@ -383,12 +377,12 @@ public class DockerRunnerApplicationMaster {
 
     public float getProgress() {
 
-      return localDockerContainerRunner.getProgress();
+      return yarnDockerClient.getProgress();
     }
 
     public void onError(Throwable throwable) {
       done = true;
-      localDockerContainerRunner.stop();
+      yarnDockerClient.stop();
       amRMClient.stop();
     }
   }
