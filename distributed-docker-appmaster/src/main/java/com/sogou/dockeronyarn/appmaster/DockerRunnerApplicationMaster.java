@@ -126,8 +126,8 @@ public class DockerRunnerApplicationMaster {
     try {
       DockerRunnerApplicationMaster appMaster = new DockerRunnerApplicationMaster();
       LOG.info("Initializing ApplicationMaster. "
-      + "yarn.timeline-service.webapp.address" + " = "
-      + appMaster.appHistoryTrackingUrlBase);
+              + "yarn.timeline-service.webapp.address" + " = "
+              + appMaster.appHistoryTrackingUrlBase);
 
       boolean doRun = appMaster.init(args);
       if (!doRun) {
@@ -330,7 +330,7 @@ public class DockerRunnerApplicationMaster {
     } else {
       appStatus = FinalApplicationStatus.FAILED;
       appMessage = "Diagnostics." + ", docker Container exited code: " +
-      yarnDockerClient.getExitStatus();
+              yarnDockerClient.getExitStatus();
       success = false;
     }
 
