@@ -109,7 +109,7 @@ public class DockerClientV2 {
   }
 
   /**
-   * Submit app descripted by @appDescriptor and wait it for finish.
+   * Submit app descripted by @appDescriptor and wait it for shutdown.
    */
   public boolean run(DockerOnYarnAppDescriptor appDescriptor) throws IOException, YarnException {
     ApplicationId appId = submitYarnApplication(appDescriptor);
@@ -347,7 +347,7 @@ public class DockerClientV2 {
         }
       } else if (YarnApplicationState.KILLED == state
               || YarnApplicationState.FAILED == state) {
-        LOG.info("Application did not finish."
+        LOG.info("Application did not shutdown."
                 + " YarnState=" + state.toString() + ", DSFinalStatus=" + dsStatus.toString()
                 + ". Breaking monitoring loop");
         return false;

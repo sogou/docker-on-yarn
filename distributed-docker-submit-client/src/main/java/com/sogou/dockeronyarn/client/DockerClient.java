@@ -706,7 +706,7 @@ public class DockerClient {
       }
       else if (YarnApplicationState.KILLED == state	
           || YarnApplicationState.FAILED == state) {
-        LOG.info("Application did not finish."
+        LOG.info("Application did not shutdown."
             + " YarnState=" + state.toString() + ", DSFinalStatus=" + dsStatus.toString()
             + ". Breaking monitoring loop");
         return false;

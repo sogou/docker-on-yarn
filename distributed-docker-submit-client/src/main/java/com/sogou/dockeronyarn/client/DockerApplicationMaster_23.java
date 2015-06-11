@@ -598,9 +598,9 @@ public class DockerApplicationMaster_23 {
     LOG.info("Application completed. Stopping running containers");
     nmClientAsync.stop();
 
-    // When the application completes, it should send a finish application
+    // When the application completes, it should send a shutdown application
     // signal to the RM
-    LOG.info("Application completed. Signalling finish to RM");
+    LOG.info("Application completed. Signalling shutdown to RM");
 
     FinalApplicationStatus appStatus;
     String appMessage = null;

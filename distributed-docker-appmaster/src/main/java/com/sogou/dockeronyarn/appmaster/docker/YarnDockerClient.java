@@ -13,63 +13,45 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.webapp.NotFoundException;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class YarnDockerClient {
 
-
   private static final Log LOG = LogFactory.getLog(YarnDockerClient.class);
   private static String CONTAINER_RUNNER_SCRIPT_PATH = "/runner.py";
-
   private static String[] RUN_CMD = new String[]{"/usr/bin/python", CONTAINER_RUNNER_SCRIPT_PATH};
-  private final YarnDockerClientParam yarnDockerClientParam;
 
+  private final YarnDockerClientParam yarnDockerClientParam;
   private long streamTimeout = 10 * 1000;
   private int stopTimeout = 60;
 
+  private final DockerClient docker;
+
   private Thread stdoutThread;
-
   private Thread stderrThread;
-
-  private WaitTaskRunner wtr;
-
   private Thread waitThread;
 
   private String containerId;
-
+  private int exitcode = ExitCode.TIMEOUT.getValue();
   private volatile boolean containerStoped = false;
-
-  private DockerClient docker;
-
-  private Process pullProcess = null;
-
-  private int pullProcessTryNum = 3;
-
-  private String runPath;
-
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
 
   public YarnDockerClient(YarnDockerClientParam yarnDockerClientParam) {
     this.yarnDockerClientParam = yarnDockerClientParam;
+    this.docker = getDockerClient();
   }
 
   /**
    * Start container, non block.
    *
-   * @return ExitCode
+   * @throws IOException
+   * @throws DockerException
    */
-  public int startContainer() throws IOException, DockerException {
-
-    DockerClient dockerClient = getDockerClient();
-    this.docker = dockerClient;
-
+  public void startContainer() throws IOException, DockerException {
     LOG.info("Pulling docker image: " + yarnDockerClientParam.dockerImage);
     try {
       docker.pullImageCmd(yarnDockerClientParam.dockerImage).exec().close();
@@ -84,47 +66,53 @@ public class YarnDockerClient {
     LOG.info("Start docker container: " + containerId);
     getStartContainerCmd().exec();
 
-    startLogTaillingThreads(containerId);
+    startLogTailingThreads(containerId);
 
-    this.wtr = new WaitTaskRunner(docker, containerId);
-    this.waitThread = new Thread(wtr, "waitThread");
+    this.waitThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        WaitContainerCmd wc = docker.waitContainerCmd(containerId);
+        try {
+          exitcode = wc.exec();
+          LOG.info(String.format("Container %s exited with exitCode=%d", containerId, exitcode));
+        } catch (NotFoundException e) {
+          LOG.error(String.format("Container %s not found", containerId), e);
+          exitcode = ExitCode.CONTAINER_NOT_CREATE.getValue();
+        }
+      }
+    }, "waitThread-" + containerId);
 
     waitThread.start();
-    return 0;
   }
 
   /**
    * Block until the docker container exit
    *
-   * @return ExitValue
+   * @return Exit code of the container.
    */
 
   public int waitContainerExit() {
-    int value;
     try {
       waitThread.join(this.yarnDockerClientParam.clientTimeout);
+      containerStoped = true;
     } catch (InterruptedException e) {
-      System.out.println("container  interrupted");
-      e.printStackTrace();
+      LOG.info("Interrupted when waiting container to exit");
     }
 
-    value = wtr.getExitCode();
-
-
-
-    return value;
+    return exitcode;
   }
 
-  public int runtask() throws IOException, DockerException {
-    int exitValue = startContainer();
-    if (exitValue != 0)
-      return exitValue;
-
-    exitValue = waitContainerExit();
-
-    finish();
-
-    return exitValue;
+  private int runTask() throws IOException, DockerException {
+    try {
+      startContainer();
+      return waitContainerExit();
+    }catch (Exception e){
+      LOG.error("Failed To Start container: " + e.getMessage(), e);
+      return ExitCode.CONTAINER_NOT_CREATE.getValue();
+    }
+    finally {
+      shutdown();
+    }
   }
 
   private DockerClient getDockerClient() {
@@ -167,110 +155,71 @@ public class YarnDockerClient {
     return startCmd;
   }
 
-  public void finish() {
+  public void shutdown() throws IOException {
     LOG.info("Finishing");
 
-    ensureContainerRemoved();
     try {
       stderrThread.join(this.streamTimeout);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    }
-
-    try {
       stdoutThread.join(this.streamTimeout);
     } catch (InterruptedException e) {
-      e.printStackTrace();
+      LOG.warn(e);
     }
 
-    try {
-      this.docker.close();
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+    docker.removeContainerCmd(containerId).exec();
+    LOG.info(String.format("Container %s removed.", containerId));
+
+    this.docker.close();
+    LOG.info("Docker client closed");
   }
 
-  private void startLogTaillingThreads(final String containerId) {
-    this.stdoutThread = new Thread() {
+
+  private void startLogTailingThreads(final String containerId) {
+    this.stdoutThread = createTailingThread(containerId, true);
+    this.stderrThread = createTailingThread(containerId, false);
+
+    stdoutThread.start();
+    stderrThread.start();
+  }
+
+  private Thread createTailingThread(final String containerId, final boolean isStdout) {
+    return new Thread() {
       @Override
       public void run() {
         BufferedReader reader = null;
+
         try {
           LogContainerCmd logCmd = docker.logContainerCmd(containerId);
           logCmd.withFollowStream(true);
-          logCmd.withStdErr(false);
-          logCmd.withStdOut(true);
+
+          logCmd.withStdErr(!isStdout);
+          logCmd.withStdOut(isStdout);
           logCmd.withTimestamps(false);
 
           InputStream input = logCmd.exec();
           reader = new BufferedReader(new InputStreamReader(input));
           String line;
+          PrintStream out = isStdout? System.out: System.err;
           while ((line = reader.readLine()) != null && !isInterrupted()) {
-            System.out.println(line.trim());
+           out.println(line.trim());
           }
 
+          LOG.info(String.format("Tailing %s of container %s stopped",
+                  isStdout ? "STDOUT" : "STDERR",
+                  containerId));
         } catch (Exception e) {
-          e.printStackTrace();
+          LOG.error(e);
         } finally {
           if (reader != null) {
             try {
               reader.close();
-              LOG.info("stdout closed");
             } catch (IOException e) {
-              e.printStackTrace();
+             LOG.error(e);
             }
           }
 
         }
       }
     };
-
-    this.stderrThread = new Thread() {
-
-      @Override
-      public void run() {
-        BufferedReader reader = null;
-        try {
-          LogContainerCmd logCmd = docker.logContainerCmd(containerId);
-          logCmd.withFollowStream(true);
-          logCmd.withStdErr(true);
-          logCmd.withStdOut(false);
-          logCmd.withTimestamps(false);
-          InputStream input = logCmd.exec();
-          reader = new BufferedReader(new InputStreamReader(input));
-          String line;
-          while ((line = reader.readLine()) != null && !isInterrupted()) {
-
-            System.err.println(line.trim());
-
-          }
-
-        } catch (Exception e) {
-          e.printStackTrace();
-        } finally {
-          if (reader != null) {
-            try {
-              reader.close();
-              LOG.info("stderr closed");
-            } catch (IOException e) {
-              e.printStackTrace();
-            }
-          }
-
-        }
-      }
-    };
-
-    try {
-      stdoutThread.start();
-    } catch (IllegalThreadStateException e) {
-    }
-
-    try {
-      stderrThread.start();
-    } catch (IllegalThreadStateException e) {
-    }
   }
 
   public static void main(String[] args) {
@@ -293,7 +242,7 @@ public class YarnDockerClient {
       YarnDockerClient client = new YarnDockerClient(yarnDockerClientParam);
       Runtime.getRuntime().addShutdownHook(new Thread(client.new ShutdownHook(), "shutdownWork"));
 
-      result = client.runtask();
+      result = client.runTask();
 
     } catch (Throwable t) {
       LOG.fatal("Error running CLient", t);
@@ -311,11 +260,7 @@ public class YarnDockerClient {
   }
 
   public int getExitStatus() {
-    return wtr.getExitCode();
-  }
-
-  private void ensureContainerRemoved() {
-    docker.removeContainerCmd(containerId).exec();
+    return exitcode;
   }
 
   public void stop() throws com.github.dockerjava.api.NotFoundException, NotModifiedException{
@@ -334,42 +279,10 @@ public class YarnDockerClient {
     return 0;
   }
 
-  public class WaitTaskRunner implements Runnable {
-    private int exitcode = ExitCode.TIMEOUT.getValue();
-    private DockerClient docker;
-    private String id;
-
-    public WaitTaskRunner(DockerClient docker, String id) {
-      this.docker = docker;
-      this.id = id;
-    }
-
-    @Override
-    public void run() {
-      WaitContainerCmd wc = docker.waitContainerCmd(id);
-      try {
-        exitcode = wc.exec();
-        containerStoped = true;
-        LOG.info("waitThread end");
-      } catch (NotFoundException e) {
-        e.printStackTrace();
-      }
-
-    }
-
-    public int getExitCode() {
-      return this.exitcode;
-    }
-
-  }
-
   public class ShutdownHook implements Runnable {
 
     public void run() {
       LOG.info("shutdownhook start");
-      if (pullProcess != null) {
-        pullProcess.destroy();
-      }
 
       if (containerId != null && !containerStoped) {
         containerStoped = true;

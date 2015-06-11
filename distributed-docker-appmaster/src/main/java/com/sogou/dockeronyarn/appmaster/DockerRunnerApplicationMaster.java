@@ -138,6 +138,7 @@ public class DockerRunnerApplicationMaster {
       LOG.fatal("Error running ApplicationMaster", t);
       System.exit(1);
     }
+
     if (result) {
       LOG.info("Application Master completed successfully. exiting");
       System.exit(0);
@@ -191,7 +192,7 @@ public class DockerRunnerApplicationMaster {
       LOG.error("yarnDockerClient exited with exception: " + e.getMessage(), e);
     }
     finally {
-      yarnDockerClient.finish();
+      yarnDockerClient.shutdown();
     }
 
     return finish();
@@ -279,10 +280,6 @@ public class DockerRunnerApplicationMaster {
     dockerImage = cliParser.getOptionValue("image");
     checkNotEmpty(dockerImage, "No image argument given");
     commandToRun = cliParser.getArgs();
-    return initDockerContainerRunner();
-  }
-
-  private boolean initDockerContainerRunner() {
     this.yarnDockerClient = new YarnDockerClient(buildYarnDockerClientParam());
     return true;
   }
@@ -318,9 +315,9 @@ public class DockerRunnerApplicationMaster {
   }
 
   private boolean finish(){
-    // When the application completes, it should send a finish application
+    // When the application completes, it should send a shutdown application
     // signal to the RM
-    LOG.info("Application completed. Signalling finish to RM");
+    LOG.info("Application completed. Signalling shutdown to RM");
 
     FinalApplicationStatus appStatus;
     String appMessage = null;
