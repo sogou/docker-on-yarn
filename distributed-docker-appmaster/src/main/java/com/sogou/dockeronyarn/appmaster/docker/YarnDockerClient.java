@@ -139,7 +139,7 @@ public class YarnDockerClient {
     con.withCpuShares(this.yarnDockerClientParam.containerVirtualCores);
     con.withMemoryLimit(new Long(this.yarnDockerClientParam.containerMemory * 1024 * 1024));
     con.withAttachStderr(true);
-    con.withAttachStdin(true);
+    con.withAttachStdin(false);
     con.withAttachStdout(true);
     con.withCmd(this.yarnDockerClientParam.cmdAndArgs);
     return con;
