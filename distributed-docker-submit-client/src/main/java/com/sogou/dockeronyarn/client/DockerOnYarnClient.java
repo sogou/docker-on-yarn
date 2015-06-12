@@ -33,8 +33,8 @@ import java.util.Map;
 /**
  * Created by guoshiwei on 15/4/25.
  */
-public class DockerClientV2 {
-  private static final Log LOG = LogFactory.getLog(DockerClientV2.class);
+public class DockerOnYarnClient {
+  private static final Log LOG = LogFactory.getLog(DockerOnYarnClient.class);
 
   // Configuration
   private final Configuration yarnConf;
@@ -61,7 +61,7 @@ public class DockerClientV2 {
   private boolean debugFlag;
   private FileSystem fs;
 
-  public DockerClientV2() {
+  public DockerOnYarnClient() {
     this.yarnConf = new YarnConfiguration();
     this.ddockerConf = new DistributedDockerConfiguration();
     this.appMasterMainClass = DockerRunnerApplicationMaster.class.getName();

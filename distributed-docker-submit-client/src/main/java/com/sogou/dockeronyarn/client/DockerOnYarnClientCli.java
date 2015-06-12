@@ -13,12 +13,12 @@ import static com.sogou.dockeronyarn.common.Utils.checkNotEmpty;
  */
 public class DockerOnYarnClientCli {
   private static final Log LOG = LogFactory.getLog(DockerOnYarnClientCli.class);
-  private final DockerClientV2 dockerClient;
+  private final DockerOnYarnClient dockerClient;
   private DockerOnYarnAppDescriptor appDescriptor;
   private Options opts;
 
   public DockerOnYarnClientCli() {
-    dockerClient = new DockerClientV2();
+    dockerClient = new DockerOnYarnClient();
     this.setupOpts();
   }
 

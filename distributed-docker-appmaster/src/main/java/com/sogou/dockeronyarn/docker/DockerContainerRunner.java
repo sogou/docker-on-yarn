@@ -1,4 +1,4 @@
-package com.sogou.dockeronyarn.appmaster.docker;
+package com.sogou.dockeronyarn.docker;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.DockerException;
@@ -18,13 +18,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class YarnDockerClient {
+public class DockerContainerRunner {
 
-  private static final Log LOG = LogFactory.getLog(YarnDockerClient.class);
+  private static final Log LOG = LogFactory.getLog(DockerContainerRunner.class);
   private static String CONTAINER_RUNNER_SCRIPT_PATH = "/runner.py";
   private static String[] RUN_CMD = new String[]{"/usr/bin/python", CONTAINER_RUNNER_SCRIPT_PATH};
 
-  private final YarnDockerClientParam yarnDockerClientParam;
+  private final DockerContainerRunnerParam dockerContainerRunnerParam;
   private long streamTimeout = 10 * 1000;
   private int stopTimeout = 60;
 
@@ -40,8 +40,8 @@ public class YarnDockerClient {
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
 
-  public YarnDockerClient(YarnDockerClientParam yarnDockerClientParam) {
-    this.yarnDockerClientParam = yarnDockerClientParam;
+  public DockerContainerRunner(DockerContainerRunnerParam dockerContainerRunnerParam) {
+    this.dockerContainerRunnerParam = dockerContainerRunnerParam;
     this.docker = getDockerClient();
   }
 
@@ -52,9 +52,9 @@ public class YarnDockerClient {
    * @throws DockerException
    */
   public void startContainer() throws IOException, DockerException {
-    LOG.info("Pulling docker image: " + yarnDockerClientParam.dockerImage);
+    LOG.info("Pulling docker image: " + dockerContainerRunnerParam.dockerImage);
     try {
-      docker.pullImageCmd(yarnDockerClientParam.dockerImage).exec().close();
+      docker.pullImageCmd(dockerContainerRunnerParam.dockerImage).exec().close();
     }catch (IOException e){
       throw new RuntimeException("Pull docker image failed.", e);
     }
@@ -93,7 +93,7 @@ public class YarnDockerClient {
 
   public int waitContainerExit() {
     try {
-      waitThread.join(this.yarnDockerClientParam.clientTimeout);
+      waitThread.join(this.dockerContainerRunnerParam.clientTimeout);
       containerStoped = true;
     } catch (InterruptedException e) {
       LOG.info("Interrupted when waiting container to exit");
@@ -119,9 +119,9 @@ public class YarnDockerClient {
     LOG.info("Initializing Docker Client");
     DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
             .createDefaultConfigBuilder();
-    configBuilder.withLoggingFilter(this.yarnDockerClientParam.debugFlag)
-            .withUri("https://" + yarnDockerClientParam.dockerHost)
-            .withDockerCertPath(yarnDockerClientParam.dockerCertPath);
+    configBuilder.withLoggingFilter(this.dockerContainerRunnerParam.debugFlag)
+            .withUri("https://" + dockerContainerRunnerParam.dockerHost)
+            .withDockerCertPath(dockerContainerRunnerParam.dockerCertPath);
     DockerClientConfig config = configBuilder.build();
 
     return DockerClientBuilder.getInstance(config)
@@ -131,24 +131,24 @@ public class YarnDockerClient {
   private CreateContainerCmd getCreateContainerCmd() {
     ArrayList<String> cmds = new ArrayList<String>();
     Collections.addAll(cmds, RUN_CMD);
-    Collections.addAll(cmds, yarnDockerClientParam.cmdAndArgs);
-    yarnDockerClientParam.cmdAndArgs = cmds.toArray(yarnDockerClientParam.cmdAndArgs);
+    Collections.addAll(cmds, dockerContainerRunnerParam.cmdAndArgs);
+    dockerContainerRunnerParam.cmdAndArgs = cmds.toArray(dockerContainerRunnerParam.cmdAndArgs);
 
 
-    CreateContainerCmd con = docker.createContainerCmd(this.yarnDockerClientParam.dockerImage);
-    con.withCpuShares(this.yarnDockerClientParam.containerVirtualCores);
-    con.withMemoryLimit(new Long(this.yarnDockerClientParam.containerMemory * 1024 * 1024));
+    CreateContainerCmd con = docker.createContainerCmd(this.dockerContainerRunnerParam.dockerImage);
+    con.withCpuShares(this.dockerContainerRunnerParam.containerVirtualCores);
+    con.withMemoryLimit(new Long(this.dockerContainerRunnerParam.containerMemory * 1024 * 1024));
     con.withAttachStderr(true);
     con.withAttachStdin(false);
     con.withAttachStdout(true);
-    con.withCmd(this.yarnDockerClientParam.cmdAndArgs);
+    con.withCmd(this.dockerContainerRunnerParam.cmdAndArgs);
     return con;
   }
 
   private StartContainerCmd getStartContainerCmd() {
     StartContainerCmd startCmd = docker.startContainerCmd(containerId);
 
-    this.volumeBinds.add(new Bind(yarnDockerClientParam.runnerScriptPath,
+    this.volumeBinds.add(new Bind(dockerContainerRunnerParam.runnerScriptPath,
             new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
 
     startCmd.withBinds(volumeBinds.toArray(new Bind[0]));
@@ -226,20 +226,20 @@ public class YarnDockerClient {
 
     int result = -1;
     try {
-      YarnDockerClientParam yarnDockerClientParam = new YarnDockerClientParam();
+      DockerContainerRunnerParam dockerContainerRunnerParam = new DockerContainerRunnerParam();
       try {
-        yarnDockerClientParam.initFromCmdlineArgs(args);
-        if (yarnDockerClientParam.isPrintHelp) {
-          yarnDockerClientParam.printUsage();
+        dockerContainerRunnerParam.initFromCmdlineArgs(args);
+        if (dockerContainerRunnerParam.isPrintHelp) {
+          dockerContainerRunnerParam.printUsage();
           System.exit(ExitCode.SUCC.getValue());
         }
       } catch (IllegalArgumentException e) {
         System.err.println(e.getLocalizedMessage());
-        yarnDockerClientParam.printUsage();
+        dockerContainerRunnerParam.printUsage();
         System.exit(ExitCode.ILLEGAL_ARGUMENT.getValue());
       }
 
-      YarnDockerClient client = new YarnDockerClient(yarnDockerClientParam);
+      DockerContainerRunner client = new DockerContainerRunner(dockerContainerRunnerParam);
       Runtime.getRuntime().addShutdownHook(new Thread(client.new ShutdownHook(), "shutdownWork"));
 
       result = client.runTask();

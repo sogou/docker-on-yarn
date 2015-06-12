@@ -1,4 +1,4 @@
-package com.sogou.dockeronyarn.appmaster.docker;
+package com.sogou.dockeronyarn.docker;
 
 import org.apache.commons.cli.*;
 
@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-public class YarnDockerClientParam {// Debug flag
+public class DockerContainerRunnerParam {// Debug flag
   public boolean debugFlag = false;// Args to be passed to the shell command
   public String[] cmdAndArgs;// Env variables to be setup for the shell command
   public Map<String, String> cmdEnv = new HashMap<String, String>();
@@ -23,7 +23,7 @@ public class YarnDockerClientParam {// Debug flag
   private Options opts = new Options();
   public boolean isPrintHelp = false; // TODO: get value from command line options.
 
-  public YarnDockerClientParam(){
+  public DockerContainerRunnerParam(){
     opts.addOption("timeout", true, "Application timeout in milliseconds");
     opts.addOption("docker_image", true, "docker image to be executed");
     opts.addOption("docker_host", true, "ip:port of docker server, example: localhost:2376");
@@ -54,18 +54,18 @@ public class YarnDockerClientParam {// Debug flag
 
     if (args.length == 0) {
       throw new IllegalArgumentException(
-              "No args specified for YarnDockerClient to initialize");
+              "No args specified for DockerContainerRunner to initialize");
     }
 
     if (!cmdLine.hasOption("docker_image")) {
       throw new IllegalArgumentException(
-              "No image specified for YarnDockerClient to initialize");
+              "No image specified for DockerContainerRunner to initialize");
     } else {
       dockerImage = cmdLine.getOptionValue("docker_image");
       if (dockerImage == null
               || dockerImage.trim().length() == 0) {
         throw new IllegalArgumentException(
-                "No image specified for YarnDockerClient to initialize");
+                "No image specified for DockerContainerRunner to initialize");
       }
     }
     dockerHost = cmdLine.getOptionValue("docker_host");
@@ -78,7 +78,7 @@ public class YarnDockerClientParam {// Debug flag
 
     if (runnerScriptPath == null || runnerScriptPath.trim().length() == 0) {
       throw new IllegalArgumentException(
-              "No runpath specified for YarnDockerClient to run cmds");
+              "No runpath specified for DockerContainerRunner to run cmds");
     }
 
 
@@ -131,7 +131,7 @@ public class YarnDockerClientParam {// Debug flag
 
     if (clientTimeout <= 0) {
       throw new IllegalArgumentException(
-              " Illegal timeout specified for YarnDockerClient to initialize");
+              " Illegal timeout specified for DockerContainerRunner to initialize");
     }
 
     cmdAndArgs = cmdLine.getArgs();
@@ -143,6 +143,6 @@ public class YarnDockerClientParam {// Debug flag
   }
 
   public  void printUsage() {
-    new HelpFormatter().printHelp("YarnDockerClient [options] command [args ... ]", opts);
+    new HelpFormatter().printHelp("DockerContainerRunner [options] command [args ... ]", opts);
   }
 }

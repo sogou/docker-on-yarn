@@ -1,9 +1,9 @@
 package com.sogou.dockeronyarn.appmaster;
 
-import com.sogou.dockeronyarn.appmaster.docker.YarnDockerClient;
+import com.sogou.dockeronyarn.docker.DockerContainerRunner;
 import com.sogou.dockeronyarn.common.Log4jPropertyHelper;
 import com.sogou.dockeronyarn.common.Utils;
-import com.sogou.dockeronyarn.appmaster.docker.YarnDockerClientParam;
+import com.sogou.dockeronyarn.docker.DockerContainerRunnerParam;
 import com.sogou.dockeronyarn.common.DistributedDockerConfiguration;
 import org.apache.commons.cli.*;
 import org.apache.commons.logging.Log;
@@ -70,7 +70,7 @@ public class DockerRunnerApplicationMaster {
   protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
 
 
-  private YarnDockerClient yarnDockerClient;
+  private DockerContainerRunner dockerContainerRunner;
   private volatile boolean done;
 
   private String workingDirectory ;
@@ -82,8 +82,8 @@ public class DockerRunnerApplicationMaster {
   }
 
 
-  private YarnDockerClientParam buildYarnDockerClientParam() {
-    YarnDockerClientParam p = new YarnDockerClientParam();
+  private DockerContainerRunnerParam buildYarnDockerClientParam() {
+    DockerContainerRunnerParam p = new DockerContainerRunnerParam();
 
     DistributedDockerConfiguration dockerConf = new DistributedDockerConfiguration();
 
@@ -185,14 +185,14 @@ public class DockerRunnerApplicationMaster {
     LOG.info("Max vcores capabililty of resources in this cluster " + maxVCores);
 
     try{
-      yarnDockerClient.startContainer();
-      yarnDockerClient.waitContainerExit();
+      dockerContainerRunner.startContainer();
+      dockerContainerRunner.waitContainerExit();
     }
     catch (Exception e){
-      LOG.error("yarnDockerClient exited with exception: " + e.getMessage(), e);
+      LOG.error("dockerContainerRunner exited with exception: " + e.getMessage(), e);
     }
     finally {
-      yarnDockerClient.shutdown();
+      dockerContainerRunner.shutdown();
     }
 
     return finish();
@@ -280,7 +280,7 @@ public class DockerRunnerApplicationMaster {
     dockerImage = cliParser.getOptionValue("image");
     checkNotEmpty(dockerImage, "No image argument given");
     commandToRun = cliParser.getArgs();
-    this.yarnDockerClient = new YarnDockerClient(buildYarnDockerClientParam());
+    this.dockerContainerRunner = new DockerContainerRunner(buildYarnDockerClientParam());
     return true;
   }
 
@@ -322,12 +322,12 @@ public class DockerRunnerApplicationMaster {
     FinalApplicationStatus appStatus;
     String appMessage = null;
     boolean success = true;
-    if (yarnDockerClient.getExitStatus()  == 0) {
+    if (dockerContainerRunner.getExitStatus()  == 0) {
       appStatus = FinalApplicationStatus.SUCCEEDED;
     } else {
       appStatus = FinalApplicationStatus.FAILED;
       appMessage = "Diagnostics." + ", docker Container exited code: " +
-              yarnDockerClient.getExitStatus();
+              dockerContainerRunner.getExitStatus();
       success = false;
     }
 
@@ -365,7 +365,7 @@ public class DockerRunnerApplicationMaster {
 
     public void onShutdownRequest() {
       done = true;
-      yarnDockerClient.stop();
+      dockerContainerRunner.stop();
     }
 
     public void onNodesUpdated(List<NodeReport> list) {
@@ -374,12 +374,12 @@ public class DockerRunnerApplicationMaster {
 
     public float getProgress() {
 
-      return yarnDockerClient.getProgress();
+      return dockerContainerRunner.getProgress();
     }
 
     public void onError(Throwable throwable) {
       done = true;
-      yarnDockerClient.stop();
+      dockerContainerRunner.stop();
       amRMClient.stop();
     }
   }

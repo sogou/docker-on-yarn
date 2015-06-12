@@ -1,4 +1,4 @@
-package com.sogou.dockeronyarn.appmaster.docker;
+package com.sogou.dockeronyarn.docker;
 
 import java.util.ArrayList;
 
