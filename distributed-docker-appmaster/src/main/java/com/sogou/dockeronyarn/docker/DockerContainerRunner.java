@@ -24,8 +24,7 @@ public class DockerContainerRunner {
   private static String CONTAINER_RUNNER_SCRIPT_PATH = "/runner.py";
   private static String[] RUN_CMD = new String[]{"/usr/bin/python", CONTAINER_RUNNER_SCRIPT_PATH};
 
-  private final DockerContainerRunnerParam dockerContainerRunnerParam;
-  private long streamTimeout = 10 * 1000;
+  private final DockerContainerRunnerParam param;
   private int stopTimeout = 60;
 
   private final DockerClient docker;
@@ -36,13 +35,28 @@ public class DockerContainerRunner {
 
   private String containerId;
   private int exitcode = ExitCode.TIMEOUT.getValue();
-  private volatile boolean containerStoped = false;
+  private volatile boolean containerStopped = false;
+  private volatile boolean isStopContainerRequested = false;
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
 
-  public DockerContainerRunner(DockerContainerRunnerParam dockerContainerRunnerParam) {
-    this.dockerContainerRunnerParam = dockerContainerRunnerParam;
-    this.docker = getDockerClient();
+  public DockerContainerRunner(DockerContainerRunnerParam param) {
+    this.param = param;
+    this.docker = createDockerClient();
+
+    Runtime.getRuntime().addShutdownHook(
+            new Thread("shutdown DockerContainerRunner"){
+              public void run(){
+                LOG.info("shutdownhook start");
+                try {
+                  shutdown();
+                } catch (IOException e) {
+                  LOG.warn(e);
+                }
+                LOG.info("shutdownhook end");
+              }
+            }
+    );
   }
 
   /**
@@ -51,20 +65,20 @@ public class DockerContainerRunner {
    * @throws IOException
    * @throws DockerException
    */
-  public void startContainer() throws IOException, DockerException {
-    LOG.info("Pulling docker image: " + dockerContainerRunnerParam.dockerImage);
+  public void startContainer(String containerName) throws IOException, DockerException {
+    LOG.info("Pulling docker image: " + param.dockerImage);
     try {
-      docker.pullImageCmd(dockerContainerRunnerParam.dockerImage).exec().close();
+      docker.pullImageCmd(param.dockerImage).exec().close();
     }catch (IOException e){
       throw new RuntimeException("Pull docker image failed.", e);
     }
 
-    CreateContainerCmd createContainerCmd = getCreateContainerCmd();
+    CreateContainerCmd createContainerCmd = getCreateContainerCmd(containerName);
     LOG.info("Creating docker container: " + createContainerCmd.toString());
     this.containerId = createContainerCmd.exec().getId();
 
     LOG.info("Start docker container: " + containerId);
-    getStartContainerCmd().exec();
+    docker.startContainerCmd(containerId).exec();
 
     startLogTailingThreads(containerId);
 
@@ -92,81 +106,130 @@ public class DockerContainerRunner {
    */
 
   public int waitContainerExit() {
-    try {
-      waitThread.join(this.dockerContainerRunnerParam.clientTimeout);
-      containerStoped = true;
-    } catch (InterruptedException e) {
-      LOG.info("Interrupted when waiting container to exit");
+
+    final long WAIT_INTERVAL = 100;
+    long waitedMilliSecs = 0;
+
+    while(true){
+      if(isStopContainerRequested){
+        doStopContainer("user requested");
+      }
+
+      if((param.clientTimeout > 0 ) && waitedMilliSecs >= param.clientTimeout){
+        doStopContainer(String.format("Timeout for %d seconds", waitedMilliSecs/1000));
+      }
+
+      try {
+        long waitStart = System.currentTimeMillis();
+        waitThread.join(WAIT_INTERVAL);
+        containerStopped = true;
+        waitedMilliSecs += System.currentTimeMillis() - waitStart;
+      } catch (InterruptedException e) {
+        LOG.info("Interrupted when waiting container to exit");
+        break;
+      }
+
+      if(waitThread.isAlive()){
+        // container is still running, keep waiting
+        continue;
+      }
+      else{
+        LOG.info(String.format("Container %s running for %d secs and stopped.",
+                containerId, waitedMilliSecs/1000));
+        break;
+      }
     }
+
+    docker.removeContainerCmd(containerId).exec();
+    LOG.info(String.format("Container %s removed.", containerId));
+    containerId = null;
 
     return exitcode;
   }
 
-  private int runTask() throws IOException, DockerException {
-    try {
-      startContainer();
-      return waitContainerExit();
-    }catch (Exception e){
-      LOG.error("Failed To Start container: " + e.getMessage(), e);
-      return ExitCode.CONTAINER_NOT_CREATE.getValue();
+  private void doStopContainer(String reason) {
+    if (this.containerStopped) {
+      return;
     }
-    finally {
-      shutdown();
+
+    if(this.containerId == null)
+      throw new IllegalStateException("containerId is null when call doStopContainer");
+
+
+    LOG.info(String.format("Stopping Container %s cause %s", containerId, reason));
+
+    // When stopping container, we just send the request to docker service,
+    // and continue wait the waitThread to exit, which in turn wait the docker container exit.
+    // If something wrong, cause the container never exit, so our process is blocked forever,
+    // we just let it be. This situation need to be handled by the admins.
+    StopContainerCmd stopContainerCmd = docker.stopContainerCmd(containerId);
+    stopContainerCmd.withTimeout(stopTimeout);
+
+    LOG.info(String.format("Executing stop command: %s", stopContainerCmd.toString()));
+    try {
+      stopContainerCmd.exec();
+    }catch(com.github.dockerjava.api.NotFoundException nfe){
+      handleDockerException(nfe);
+    }catch(NotModifiedException nme){
+      handleDockerException(nme);
     }
   }
 
-  private DockerClient getDockerClient() {
+  private void handleDockerException(DockerException e) {
+    LOG.warn(e);
+  }
+
+  private int runTask(String containerName) throws IOException, DockerException {
+    startContainer(containerName);
+    return waitContainerExit();
+  }
+
+  private DockerClient createDockerClient() {
     LOG.info("Initializing Docker Client");
     DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
             .createDefaultConfigBuilder();
-    configBuilder.withLoggingFilter(this.dockerContainerRunnerParam.debugFlag)
-            .withUri("https://" + dockerContainerRunnerParam.dockerHost)
-            .withDockerCertPath(dockerContainerRunnerParam.dockerCertPath);
+    configBuilder.withLoggingFilter(this.param.debugFlag)
+            .withUri("https://" + param.dockerHost)
+            .withDockerCertPath(param.dockerCertPath);
     DockerClientConfig config = configBuilder.build();
 
     return DockerClientBuilder.getInstance(config)
             .build();
   }
 
-  private CreateContainerCmd getCreateContainerCmd() {
-    ArrayList<String> cmds = new ArrayList<String>();
-    Collections.addAll(cmds, RUN_CMD);
-    Collections.addAll(cmds, dockerContainerRunnerParam.cmdAndArgs);
-    dockerContainerRunnerParam.cmdAndArgs = cmds.toArray(dockerContainerRunnerParam.cmdAndArgs);
+  private CreateContainerCmd getCreateContainerCmd(String containerName) {
 
-
-    CreateContainerCmd con = docker.createContainerCmd(this.dockerContainerRunnerParam.dockerImage);
-    con.withCpuShares(this.dockerContainerRunnerParam.containerVirtualCores);
-    con.withMemoryLimit(new Long(this.dockerContainerRunnerParam.containerMemory * 1024 * 1024));
+    CreateContainerCmd con = docker.createContainerCmd(this.param.dockerImage);
+    con.withName(containerName);
+    con.withCpuShares(this.param.containerVirtualCores);
+    con.withMemoryLimit(new Long(this.param.containerMemory * 1024 * 1024));
     con.withAttachStderr(true);
     con.withAttachStdin(false);
     con.withAttachStdout(true);
-    con.withCmd(this.dockerContainerRunnerParam.cmdAndArgs);
-    return con;
-  }
 
-  private StartContainerCmd getStartContainerCmd() {
-    StartContainerCmd startCmd = docker.startContainerCmd(containerId);
-
-    this.volumeBinds.add(new Bind(dockerContainerRunnerParam.runnerScriptPath,
+    this.volumeBinds.add(new Bind(param.runnerScriptPath,
             new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
+    con.withBinds(volumeBinds.toArray(new Bind[0]));
 
-    startCmd.withBinds(volumeBinds.toArray(new Bind[0]));
-    return startCmd;
+    ArrayList<String> cmds = new ArrayList<String>();
+    Collections.addAll(cmds, RUN_CMD);
+    Collections.addAll(cmds, param.cmdAndArgs);
+    param.cmdAndArgs = cmds.toArray(param.cmdAndArgs);
+    con.withCmd(this.param.cmdAndArgs);
+
+    return con;
   }
 
   public void shutdown() throws IOException {
     LOG.info("Finishing");
 
-    try {
-      stderrThread.join(this.streamTimeout);
-      stdoutThread.join(this.streamTimeout);
-    } catch (InterruptedException e) {
-      LOG.warn(e);
+    // Container should be stopped first
+    if(!containerStopped) {
+      LOG.warn(String.format("Docker Container not stopped when shutting down, will stop it now",
+              containerId));
+      stopContainer();
+      waitContainerExit();
     }
-
-    docker.removeContainerCmd(containerId).exec();
-    LOG.info(String.format("Container %s removed.", containerId));
 
     this.docker.close();
     LOG.info("Docker client closed");
@@ -182,7 +245,7 @@ public class DockerContainerRunner {
   }
 
   private Thread createTailingThread(final String containerId, final boolean isStdout) {
-    return new Thread() {
+    Thread thread = new Thread() {
       @Override
       public void run() {
         BufferedReader reader = null;
@@ -199,8 +262,8 @@ public class DockerContainerRunner {
           reader = new BufferedReader(new InputStreamReader(input));
           String line;
           PrintStream out = isStdout? System.out: System.err;
-          while ((line = reader.readLine()) != null && !isInterrupted()) {
-           out.println(line.trim());
+          while ((line = reader.readLine()) != null) {
+            out.println(line.trim());
           }
 
           LOG.info(String.format("Tailing %s of container %s stopped",
@@ -213,13 +276,16 @@ public class DockerContainerRunner {
             try {
               reader.close();
             } catch (IOException e) {
-             LOG.error(e);
+              LOG.error(e);
             }
           }
 
         }
       }
     };
+
+    thread.setDaemon(true);
+    return thread;
   }
 
   public static void main(String[] args) {
@@ -240,9 +306,8 @@ public class DockerContainerRunner {
       }
 
       DockerContainerRunner client = new DockerContainerRunner(dockerContainerRunnerParam);
-      Runtime.getRuntime().addShutdownHook(new Thread(client.new ShutdownHook(), "shutdownWork"));
 
-      result = client.runTask();
+      result = client.runTask(String.format("dockerClientRunner-%d", System.currentTimeMillis()));
 
     } catch (Throwable t) {
       LOG.fatal("Error running CLient", t);
@@ -263,15 +328,8 @@ public class DockerContainerRunner {
     return exitcode;
   }
 
-  public void stop() throws com.github.dockerjava.api.NotFoundException, NotModifiedException{
-    if (this.containerId != null && !this.containerStoped) {
-      LOG.info(String.format("Stopping DockerContainer %s", containerId));
-      StopContainerCmd stopContainerCmd = docker.stopContainerCmd(containerId);
-      stopContainerCmd.withTimeout(stopTimeout);
-      stopContainerCmd.exec();
-      containerStoped = true;
-      LOG.info(String.format("DockerContainer %s  stoped", containerId));
-    }
+  public void stopContainer(){
+    isStopContainerRequested = true;
   }
 
   public float getProgress() {
@@ -279,44 +337,4 @@ public class DockerContainerRunner {
     return 0;
   }
 
-  public class ShutdownHook implements Runnable {
-
-    public void run() {
-      LOG.info("shutdownhook start");
-
-      if (containerId != null && !containerStoped) {
-        containerStoped = true;
-        StopContainerCmd stopContainerCmd = docker.stopContainerCmd(containerId);
-        stopContainerCmd.withTimeout(stopTimeout);
-        try {
-          stopContainerCmd.exec();
-        } catch (Exception e) {
-
-          LOG.info("docker container " + containerId
-                  + " has been killed", e);
-        }
-
-        LOG.info("container  stoped by shutdownhook");
-      }
-
-      if (stdoutThread != null && stdoutThread.isAlive()) {
-        stdoutThread.interrupt();
-      }
-      if (stderrThread != null && stderrThread.isAlive()) {
-        stderrThread.interrupt();
-      }
-      if (waitThread != null && waitThread.isAlive()) {
-        waitThread.interrupt();
-      }
-      try {
-        if (docker != null)
-          docker.close();
-      } catch (IOException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
-      LOG.info("shutdownhook end");
-    }
-
-  }
 }

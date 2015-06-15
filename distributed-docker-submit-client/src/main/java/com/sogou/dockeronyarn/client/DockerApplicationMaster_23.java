@@ -594,7 +594,7 @@ public class DockerApplicationMaster_23 {
       }
     }
 
-    // When the application completes, it should stop all running containers
+    // When the application completes, it should stopContainer all running containers
     LOG.info("Application completed. Stopping running containers");
     nmClientAsync.stop();
 
@@ -784,7 +784,7 @@ public class DockerApplicationMaster_23 {
     @Override
     public void onContainerStopped(ContainerId containerId) {
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Succeeded to stop Container " + containerId);
+        LOG.debug("Succeeded to stopContainer Container " + containerId);
       }
       containers.remove(containerId);
     }
@@ -826,7 +826,7 @@ public class DockerApplicationMaster_23 {
 
     @Override
     public void onStopContainerError(ContainerId containerId, Throwable t) {
-      LOG.error("Failed to stop Container " + containerId);
+      LOG.error("Failed to stopContainer Container " + containerId);
       containers.remove(containerId);
     }
   }

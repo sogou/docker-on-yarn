@@ -76,6 +76,7 @@ public class DockerRunnerApplicationMaster {
   private String workingDirectory ;
   private String dockerImage;
   private String[] commandToRun;
+  private String jobName;
 
   public String getRunnerAbsolutePath() {
     return workingDirectory + "/" + LOCAL_RUNNER_NAME;
@@ -185,14 +186,11 @@ public class DockerRunnerApplicationMaster {
     LOG.info("Max vcores capabililty of resources in this cluster " + maxVCores);
 
     try{
-      dockerContainerRunner.startContainer();
+      dockerContainerRunner.startContainer(String.format("%s-%s", appAttemptID, jobName));
       dockerContainerRunner.waitContainerExit();
     }
     catch (Exception e){
       LOG.error("dockerContainerRunner exited with exception: " + e.getMessage(), e);
-    }
-    finally {
-      dockerContainerRunner.shutdown();
     }
 
     return finish();
@@ -212,6 +210,7 @@ public class DockerRunnerApplicationMaster {
     opts.addOption("priority", true, "Application Priority. Default 0");
     opts.addOption("container_retry", true, "Application container_retry. Default 3");
     opts.addOption("image", true, "Docker image to run");
+    opts.addOption("job_name", true, "Uniq name of this job");
     opts.addOption("debug", false, "Dump out debug information");
 
     opts.addOption("help", false, "Print usage");
@@ -226,7 +225,12 @@ public class DockerRunnerApplicationMaster {
         LOG.warn("Can not set up custom log4j properties. " + e);
       }
     }
+    if(cliParser.hasOption("job_name")){
+      LOG.error("job_name param not found");
+      return false;
+    }
 
+    jobName = cliParser.getOptionValue("job_name");
     if (cliParser.hasOption("help")) {
       printUsage(opts);
       return false;
@@ -308,7 +312,7 @@ public class DockerRunnerApplicationMaster {
         System.out.println("System CWD content: " + line);
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      LOG.warn(e);
     } finally {
       IOUtils.cleanup(LOG, buf);
     }
@@ -365,7 +369,7 @@ public class DockerRunnerApplicationMaster {
 
     public void onShutdownRequest() {
       done = true;
-      dockerContainerRunner.stop();
+      dockerContainerRunner.stopContainer();
     }
 
     public void onNodesUpdated(List<NodeReport> list) {
@@ -379,7 +383,7 @@ public class DockerRunnerApplicationMaster {
 
     public void onError(Throwable throwable) {
       done = true;
-      dockerContainerRunner.stop();
+      dockerContainerRunner.stopContainer();
       amRMClient.stop();
     }
   }

@@ -253,6 +253,8 @@ public class DockerOnYarnClient {
     vargs.add(appMasterMainClass);
 
     // Set params for Application Master
+    vargs.add("-job_name");
+    vargs.add(appDescriptor.getAppName());
 
     vargs.add("-image");
     vargs.add(appDescriptor.getDockerImage());
