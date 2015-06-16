@@ -140,9 +140,14 @@ public class DockerContainerRunner {
       }
     }
 
-    docker.removeContainerCmd(containerId).exec();
-    LOG.info(String.format("Container %s removed.", containerId));
-    containerId = null;
+    if(param.debugFlag) {
+      LOG.info(String.format("Container %s is NOT removed as requested by user with debugFlag=%b",
+              containerId, param.debugFlag));
+    }else{
+      docker.removeContainerCmd(containerId).exec();
+      LOG.info(String.format("Container %s removed.", containerId));
+      containerId = null;
+    }
 
     return exitcode;
   }
