@@ -25,6 +25,7 @@ public class DistributedDockerConfiguration extends Configuration {
   public static final String DOCKER_HOST = DDOCKER_PREFIX + "docker.host";
   public static final String DEFAULT_DOCKER_HOST = "127.0.0.1:2376";
 
+  public static final String REQUIRED_RESOURCE_HDFS_PATH = DDOCKER_PREFIX + "resources.hdfs.dir.path";
   static {
     Configuration.addDefaultResource(DISTRIBUTED_DOCKER_CONFIGURATION_FILE);
   }

@@ -156,6 +156,28 @@ public class DockerOnYarnClient {
     return pri;
   }
 
+  /**
+   * Setup required resources for AM.
+   *
+   * All required resources should be placed on HDFS first.
+   * The value of DistributedDockerConfiguration.REQUIRED_RESOURCE_HDFS_PATH will be used.
+   * You can set a value other than the default one to use different version of AppMaster.
+   *
+   * Under REQUIRED_RESOURCE_HDFS_PATH dir, must have the following file structure:
+   *   - lib/appmaster.jar
+   *   - runner.py
+   *   - conf/distributed-docker-default.xml
+   *   - conf/log4j.properties
+   *
+   * If a local log4j.properties is given, the default one on hdfs will not be used,
+   * but the local one will be uploaded every time the app is submitted. Upload every time
+   * is slow, so we prefer to use the default one.
+   *
+   * @param appDescriptor
+   * @param appId
+   * @return
+   * @throws IOException
+   */
   private Map<String, LocalResource> createLocaleResourceMap(
           DockerOnYarnAppDescriptor appDescriptor, ApplicationId appId) throws IOException {
     Map<String, LocalResource> localResources = new HashMap<String, LocalResource>();
