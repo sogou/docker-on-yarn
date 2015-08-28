@@ -112,6 +112,9 @@ public class DockerOnYarnClient {
    * Submit app descripted by @appDescriptor and wait it for shutdown.
    */
   public boolean run(DockerOnYarnAppDescriptor appDescriptor) throws IOException, YarnException {
+  //  LOG.info("Running Client");
+   // yarnClient.start();
+    start();
     ApplicationId appId = submitYarnApplication(appDescriptor);
     return monitorApplication(appId, appDescriptor);
   }
@@ -186,7 +189,7 @@ public class DockerOnYarnClient {
     // Copy the application master jar to the filesystem
     // Create a local resource to point to the destination jar path
 
-    addToLocalResources(getAppMasterJarfilePath(), appMasterJarHdfsPath, appId.toString(),
+    addToLocalResources(appDescriptor.getAmJarPath(), appMasterJarHdfsPath, appId.toString(),
             localResources, appDescriptor);
 
     addToLocalResources(ddockerConf.get(DistributedDockerConfiguration.DDOCKER_RUNNER_PATH),
@@ -263,6 +266,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
+    //vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {

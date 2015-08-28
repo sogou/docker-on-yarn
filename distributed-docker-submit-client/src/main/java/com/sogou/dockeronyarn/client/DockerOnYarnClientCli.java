@@ -16,18 +16,29 @@ public class DockerOnYarnClientCli {
   private final DockerOnYarnClient dockerClient;
   private DockerOnYarnAppDescriptor appDescriptor;
   private Options opts;
+  private String amJarPath ;
 
   public DockerOnYarnClientCli() {
     dockerClient = new DockerOnYarnClient();
+      appDescriptor = new DockerOnYarnAppDescriptor();
     this.setupOpts();
   }
 
-  public static void main(String [] args){
+    public String getAmJarPath() {
+        return amJarPath;
+    }
+
+    public void setAmJarPath(String amJarPath) {
+        this.amJarPath = amJarPath;
+    }
+
+    public static void main(String [] args){
     boolean result = false;
     try {
       DockerOnYarnClientCli client = new DockerOnYarnClientCli();
       LOG.info("Initializing Client");
       try {
+
         boolean doRun = client.init(args);
         if (!doRun) {
           System.exit(0);
@@ -109,6 +120,7 @@ public class DockerOnYarnClientCli {
     appDescriptor.setClientTimeout(Integer.parseInt(cliParser.getOptionValue("timeout", "600000")));
 
     appDescriptor.setLog4jPropFile(cliParser.getOptionValue("log_properties", ""));
+    appDescriptor.setAmJarPath(cliParser.getOptionValue("jar"));
 
     String dockerImage = cliParser.getOptionValue("image");
     checkNotEmpty(dockerImage, "No dockerImage given");

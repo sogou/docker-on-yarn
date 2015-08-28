@@ -1,2 +1,2 @@
- export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk1.7.0_71.jdk/Contents/Home
- export HADOOP_PREFIX=/Users/guoshiwei/DEV/ENV/hadoop-2.7.0/
+ export JAVA_HOME=/usr/lib/jvm/java-1.7.0-oracle.x86_64
+ #export HADOOP_PREFIX=/Users/guoshiwei/DEV/ENV/hadoop-2.7.0/

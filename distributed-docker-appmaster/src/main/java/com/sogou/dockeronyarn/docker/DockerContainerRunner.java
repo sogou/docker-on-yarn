@@ -194,8 +194,8 @@ public class DockerContainerRunner {
     DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
             .createDefaultConfigBuilder();
     configBuilder.withLoggingFilter(this.param.debugFlag)
-            .withUri("https://" + param.dockerHost)
-            .withDockerCertPath(param.dockerCertPath);
+           .withUri("" + param.dockerHost);
+            //.withDockerCertPath(param.dockerCertPath);
     DockerClientConfig config = configBuilder.build();
 
     return DockerClientBuilder.getInstance(config)

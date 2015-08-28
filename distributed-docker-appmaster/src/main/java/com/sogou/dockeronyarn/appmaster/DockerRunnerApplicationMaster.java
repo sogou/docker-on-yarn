@@ -225,7 +225,7 @@ public class DockerRunnerApplicationMaster {
         LOG.warn("Can not set up custom log4j properties. " + e);
       }
     }
-    if(cliParser.hasOption("job_name")){
+    if(!cliParser.hasOption("job_name")){
       LOG.error("job_name param not found");
       return false;
     }

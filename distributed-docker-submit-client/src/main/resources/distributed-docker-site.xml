@@ -10,6 +10,6 @@
     </property>
     <property>
         <name>ddocker.docker.host</name>
-        <value>192.168.59.103:2376</value>
+        <value>unix:///var/run/docker.sock</value>
     </property>
 </configuration>

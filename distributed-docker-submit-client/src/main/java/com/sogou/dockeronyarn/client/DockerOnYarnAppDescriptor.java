@@ -19,7 +19,17 @@ public class DockerOnYarnAppDescriptor {
   private long clientTimeout;
   private String dockerImage;
   private int container_retry = 3;
-  private String commandToRun;
+
+    public String getAmJarPath() {
+        return amJarPath;
+    }
+
+    public void setAmJarPath(String amJarPath) {
+        this.amJarPath = amJarPath;
+    }
+
+    private String commandToRun;
+    private String amJarPath ;
 
   public DockerOnYarnAppDescriptor setAppName(String appName) {
     this.appName = appName;
