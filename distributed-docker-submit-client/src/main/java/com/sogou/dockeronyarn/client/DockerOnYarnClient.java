@@ -266,7 +266,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
-    //vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
+  //  vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {
@@ -290,6 +290,8 @@ public class DockerOnYarnClient {
 
     vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stdout");
     vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stderr");
+
+    vargs.add(appDescriptor.getCommandToRun());
 
     LOG.info("AppMasterCommand: " + StringUtils.join(vargs, " "));
 
@@ -434,5 +436,33 @@ public class DockerOnYarnClient {
   public void setDebugFlag(boolean debugFlag) {
     this.debugFlag = debugFlag;
   }
+
+
+
+  public ApplicationReport getApplicationReport(ApplicationId appId)
+  {
+      try {
+          return yarnClient.getApplicationReport(appId);
+      } catch (YarnException e) {
+          e.printStackTrace();
+
+      } catch (IOException e) {
+          e.printStackTrace();
+      }
+      return null ;
+  }
+
+  public void killApplication(ApplicationId appId)
+            throws YarnException, IOException {
+        // TODO clarify whether multiple jobs with the same app id can be submitted and be running at
+        // the same time.
+        // If yes, can we kill a particular attempt only?
+
+        // Response can be ignored as it is non-null on success or
+        // throws an exception in case of failures
+        yarnClient.killApplication(appId);
+  }
+
+
 
 }
