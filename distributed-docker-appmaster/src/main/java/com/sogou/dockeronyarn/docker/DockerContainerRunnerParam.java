@@ -13,8 +13,13 @@ public class DockerContainerRunnerParam {// Debug flag
   public String dockerImage;
   public String dockerHost;
   public String dockerCertPath;
+  public  String mountVolume;
+
 
   public String workingDir;
+
+  //the path to be mounted into docker container,eg: {"/root/ugi_config:/root/uig_config"}
+  private String[] mountPaths ;
   public String[] virtualDirs;// memory to request for container in docker will be executed
   public long containerMemory = 10;// virtual cores to request for container in docker will be executed,to do
   public int containerVirtualCores = 1;// Timeout threshold for client. Kill app after time interval expires.

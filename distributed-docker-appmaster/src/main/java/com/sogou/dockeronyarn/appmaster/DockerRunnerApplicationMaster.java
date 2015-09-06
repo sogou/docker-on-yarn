@@ -69,6 +69,10 @@ public class DockerRunnerApplicationMaster {
 
   protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
 
+  private String mountVolume ="";
+
+  private String workDir="";
+
 
   private DockerContainerRunner dockerContainerRunner;
   private volatile boolean done;
@@ -104,6 +108,8 @@ public class DockerRunnerApplicationMaster {
             DistributedDockerConfiguration.DEFAULT_DOCKER_HOST);
 
     p.dockerImage = this.dockerImage;
+    p.mountVolume = this.mountVolume ;
+    p.workingDir = this.workDir;
     return p;
   }
   public DockerRunnerApplicationMaster() {
@@ -211,6 +217,8 @@ public class DockerRunnerApplicationMaster {
     opts.addOption("container_retry", true, "Application container_retry. Default 3");
     opts.addOption("image", true, "Docker image to run");
     opts.addOption("job_name", true, "Uniq name of this job");
+    opts.addOption("v", true, "the file needed to be mounted into docker container");
+    opts.addOption("w", true, "the working dir of docker container ");
     opts.addOption("debug", false, "Dump out debug information");
 
     opts.addOption("help", false, "Print usage");
@@ -283,6 +291,8 @@ public class DockerRunnerApplicationMaster {
 
     dockerImage = cliParser.getOptionValue("image");
     checkNotEmpty(dockerImage, "No image argument given");
+    mountVolume = cliParser.getOptionValue("v");
+    workDir = cliParser.getOptionValue("w");
     commandToRun = cliParser.getArgs();
     this.dockerContainerRunner = new DockerContainerRunner(buildYarnDockerClientParam());
     return true;

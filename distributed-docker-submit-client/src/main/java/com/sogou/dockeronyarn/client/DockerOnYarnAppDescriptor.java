@@ -20,12 +20,34 @@ public class DockerOnYarnAppDescriptor {
   private String dockerImage;
   private int container_retry = 3;
 
+    private String workDir ="";
+
+    public String getWorkDir() {
+        return workDir;
+    }
+
+    public DockerOnYarnAppDescriptor setWorkDir(String workDir) {
+        this.workDir = workDir;
+        return this;
+    }
+
+    private String mountVolumne  ;
+
+    public String getMountVolumne() {
+        return mountVolumne;
+    }
+
+    public void setMountVolumne(String mountVolumne) {
+        this.mountVolumne = mountVolumne;
+    }
+
     public String getAmJarPath() {
         return amJarPath;
     }
 
-    public void setAmJarPath(String amJarPath) {
+    public DockerOnYarnAppDescriptor setAmJarPath(String amJarPath) {
         this.amJarPath = amJarPath;
+        return this ;
     }
 
     private String commandToRun;

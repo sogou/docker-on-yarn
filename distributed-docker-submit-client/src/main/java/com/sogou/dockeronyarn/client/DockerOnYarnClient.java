@@ -150,6 +150,7 @@ public class DockerOnYarnClient {
     appContext.setQueue(appDescriptor.getAmQueue());
 
     appContext.setAMContainerSpec(createContainerLaunchContext(appDescriptor, appContext));
+
     return appContext;
   }
 
@@ -209,6 +210,7 @@ public class DockerOnYarnClient {
           ApplicationSubmissionContext appContext) throws IOException {
     ContainerLaunchContext amContainer = Records.newRecord(ContainerLaunchContext.class);
 
+
     // set local resources for the application master
     // local files or archives as needed
     // In this scenario, the jar file for the application master is part of the local resources
@@ -219,6 +221,8 @@ public class DockerOnYarnClient {
     // Set the env variables to be setup in the env where the application master will be run
     LOG.info("Set the environment for the application master");
     Map<String, String> env = getEnv();
+
+   env.put("mount.volume",appDescriptor.getMountVolumne());
 
     amContainer.setEnvironment(env);
     amContainer.setCommands(getAppMasterCommands(appDescriptor));
@@ -266,7 +270,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
-  //  vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
+    vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {
@@ -281,6 +285,14 @@ public class DockerOnYarnClient {
     // Set params for Application Master
     vargs.add("-job_name");
     vargs.add(appDescriptor.getAppName());
+
+
+    vargs.add("-v");
+    vargs.add(appDescriptor.getMountVolumne());
+
+    vargs.add("-w");
+      vargs.add(appDescriptor.getWorkDir());
+
 
     vargs.add("-image");
     vargs.add(appDescriptor.getDockerImage());

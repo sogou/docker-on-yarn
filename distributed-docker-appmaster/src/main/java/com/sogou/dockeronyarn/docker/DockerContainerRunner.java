@@ -214,6 +214,13 @@ public class DockerContainerRunner {
 
     this.volumeBinds.add(new Bind(param.runnerScriptPath,
             new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
+    for(String mountPath :param.mountVolume.split("\\+"))
+    {
+        Bind localPath = new Bind(mountPath.split(":")[0],new Volume(mountPath.split(":")[1]),AccessMode.ro);
+        volumeBinds.add(localPath);
+
+
+    }
     con.withBinds(volumeBinds.toArray(new Bind[0]));
 
     ArrayList<String> cmds = new ArrayList<String>();
@@ -221,6 +228,7 @@ public class DockerContainerRunner {
     Collections.addAll(cmds, param.cmdAndArgs);
     param.cmdAndArgs = cmds.toArray(param.cmdAndArgs);
     con.withCmd(this.param.cmdAndArgs);
+    con.withWorkingDir(param.workingDir);
 
     return con;
   }
