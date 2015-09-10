@@ -216,7 +216,7 @@ public class DockerContainerRunner {
             new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
     for(String mountPath :param.mountVolume.split("\\+"))
     {
-        Bind localPath = new Bind(mountPath.split(":")[0],new Volume(mountPath.split(":")[1]),AccessMode.ro);
+        Bind localPath = new Bind(mountPath.split(":")[0],new Volume(mountPath.split(":")[1]),AccessMode.rw);
         volumeBinds.add(localPath);
 
 

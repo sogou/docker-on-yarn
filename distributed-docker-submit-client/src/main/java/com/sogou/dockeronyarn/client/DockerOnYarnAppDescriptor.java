@@ -31,14 +31,14 @@ public class DockerOnYarnAppDescriptor {
         return this;
     }
 
-    private String mountVolumne  ;
+    private String mountVolume;
 
-    public String getMountVolumne() {
-        return mountVolumne;
+    public String getMountVolume() {
+        return mountVolume;
     }
 
-    public void setMountVolumne(String mountVolumne) {
-        this.mountVolumne = mountVolumne;
+    public void setMountVolume(String mountVolume) {
+        this.mountVolume = mountVolume;
     }
 
     public String getAmJarPath() {

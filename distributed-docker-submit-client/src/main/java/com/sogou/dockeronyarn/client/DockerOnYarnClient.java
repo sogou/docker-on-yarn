@@ -222,7 +222,7 @@ public class DockerOnYarnClient {
     LOG.info("Set the environment for the application master");
     Map<String, String> env = getEnv();
 
-   env.put("mount.volume",appDescriptor.getMountVolumne());
+ //  env.put("mount.volume",appDescriptor.getMountVolume());
 
     amContainer.setEnvironment(env);
     amContainer.setCommands(getAppMasterCommands(appDescriptor));
@@ -270,7 +270,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
-    vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
+   // vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {
@@ -288,7 +288,7 @@ public class DockerOnYarnClient {
 
 
     vargs.add("-v");
-    vargs.add(appDescriptor.getMountVolumne());
+    vargs.add(appDescriptor.getMountVolume());
 
     vargs.add("-w");
       vargs.add(appDescriptor.getWorkDir());
@@ -305,6 +305,7 @@ public class DockerOnYarnClient {
 
     vargs.add(appDescriptor.getCommandToRun());
 
+    Object object ;
     LOG.info("AppMasterCommand: " + StringUtils.join(vargs, " "));
 
     return vargs;
