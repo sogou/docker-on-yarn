@@ -6,12 +6,43 @@ package com.sogou.dockeronyarn.client;
 public class DockerOnYarnAppDescriptor {
   // Start time for client
   private final long clientStartTime = System.currentTimeMillis();
-  // Application master specific info to register a new Application with RM/ASM
+
+    public String[] getDockerArgs() {
+        return dockerArgs;
+    }
+
+    public DockerOnYarnAppDescriptor setDockerArgs(String[] dockerArgs) {
+        this.dockerArgs = dockerArgs;
+        return this ;
+    }
+
+    // Application master specific info to register a new Application with RM/ASM
   private String appName = "";
   // App master priority
   private int amPriority = 0;
+
+  private String[] dockerArgs = {};
   // Queue for App master
-  private String amQueue = "";
+
+    public String getMemory() {
+        return memory;
+    }
+
+    public DockerOnYarnAppDescriptor setMemory(String memory) {
+        this.memory = memory;
+        return this  ;
+    }
+
+    public String getCpuShares() {
+        return cpuShares;
+    }
+
+    public DockerOnYarnAppDescriptor  setCpuShares(String cpuShares) {
+        this.cpuShares = cpuShares;
+        return this ;
+    }
+
+    private String amQueue = "";
 
   // log4j.properties file
   // if available, add to local resources and set into classpath
@@ -19,6 +50,9 @@ public class DockerOnYarnAppDescriptor {
   private long clientTimeout;
   private String dockerImage;
   private int container_retry = 3;
+  private String memory ="";
+  private String cpuShares="" ;
+
 
     private String workDir ="";
 
@@ -121,4 +155,7 @@ public class DockerOnYarnAppDescriptor {
   public String getCommandToRun() {
     return commandToRun;
   }
+
+
+
 }

@@ -21,6 +21,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+import org.mortbay.util.StringUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -270,7 +271,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
-   // vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
+ //   vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {
@@ -293,6 +294,8 @@ public class DockerOnYarnClient {
     vargs.add("-w");
       vargs.add(appDescriptor.getWorkDir());
 
+    vargs.add("--docker-args");
+    vargs.add("'"+StringUtils.join(appDescriptor.getDockerArgs()," ")+"\'");
 
     vargs.add("-image");
     vargs.add(appDescriptor.getDockerImage());

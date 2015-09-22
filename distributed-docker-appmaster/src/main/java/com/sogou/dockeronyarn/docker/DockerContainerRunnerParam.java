@@ -22,11 +22,22 @@ public class DockerContainerRunnerParam {// Debug flag
   private String[] mountPaths ;
   public String[] virtualDirs;// memory to request for container in docker will be executed
   public long containerMemory = 10;// virtual cores to request for container in docker will be executed,to do
-  public int containerVirtualCores = 1;// Timeout threshold for client. Kill app after time interval expires.
+
+    public String[] getDockerArgs() {
+        return dockerArgs;
+    }
+
+    public void setDockerArgs(String[] dockerArgs) {
+        this.dockerArgs = dockerArgs;
+    }
+
+    public int containerVirtualCores = 512;// Timeout threshold for client. Kill app after time interval expires.
   public long clientTimeout = 24 * 3600 * 1000;
   public String runnerScriptPath; // The absolute path of runner script on host local filesystem
   private Options opts = new Options();
   public boolean isPrintHelp = false; // TODO: get value from command line options.
+  private String[] dockerArgs = {};
+
 
   public DockerContainerRunnerParam(){
     opts.addOption("timeout", true, "Application timeout in milliseconds");

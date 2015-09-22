@@ -81,6 +81,7 @@ public class DockerRunnerApplicationMaster {
   private String dockerImage;
   private String[] commandToRun;
   private String jobName;
+  private String[] dockerArgs ;
 
   public String getRunnerAbsolutePath() {
     return workingDirectory + "/" + LOCAL_RUNNER_NAME;
@@ -110,6 +111,9 @@ public class DockerRunnerApplicationMaster {
     p.dockerImage = this.dockerImage;
     p.mountVolume = this.mountVolume ;
     p.workingDir = this.workDir;
+
+    p.setDockerArgs(dockerArgs);
+
     return p;
   }
   public DockerRunnerApplicationMaster() {
@@ -220,7 +224,7 @@ public class DockerRunnerApplicationMaster {
     opts.addOption("v", true, "the file needed to be mounted into docker container");
     opts.addOption("w", true, "the working dir of docker container ");
     opts.addOption("debug", false, "Dump out debug information");
-
+    opts.addOption(OptionBuilder.withLongOpt("docker-args").hasArgs().create());
     opts.addOption("help", false, "Print usage");
     CommandLine cliParser = new GnuParser().parse(opts, args, true);
 
@@ -294,6 +298,7 @@ public class DockerRunnerApplicationMaster {
     mountVolume = cliParser.getOptionValue("v");
     workDir = cliParser.getOptionValue("w");
     commandToRun = cliParser.getArgs();
+    dockerArgs = cliParser.getOptionValue("docker-args").split(" ");
     this.dockerContainerRunner = new DockerContainerRunner(buildYarnDockerClientParam());
     return true;
   }

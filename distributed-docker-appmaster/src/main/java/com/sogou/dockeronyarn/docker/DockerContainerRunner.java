@@ -9,6 +9,7 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
+import org.apache.commons.cli.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.webapp.NotFoundException;
@@ -38,6 +39,9 @@ public class DockerContainerRunner {
   private volatile boolean containerStopped = false;
   private volatile boolean isStopContainerRequested = false;
   private List<Bind> volumeBinds = new ArrayList<Bind>();
+
+  private static final long DEFAULT_CONTAINER_MEMORY = 1 *1024 *1024 *1024 ;
+  private static final int  DEFAULT_CONTAINER_CPU_SHARES = 512 ;
 
 
   public DockerContainerRunner(DockerContainerRunnerParam param) {
@@ -205,9 +209,47 @@ public class DockerContainerRunner {
   private CreateContainerCmd getCreateContainerCmd(String containerName) {
 
     CreateContainerCmd con = docker.createContainerCmd(this.param.dockerImage);
-    con.withName(containerName);
-    con.withCpuShares(this.param.containerVirtualCores);
-    con.withMemoryLimit(new Long(this.param.containerMemory * 1024 * 1024));
+
+      Options opts = new Options();
+      opts.addOption(OptionBuilder.withLongOpt("rm").withDescription("rm the container after execute").create());
+      opts.addOption(new Option("m","memory",true,"the memory of container"));
+      opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
+      CommandLine dockerArgsParser = null;
+      try {
+          dockerArgsParser = new GnuParser().parse(opts, param.getDockerArgs(), true);
+      } catch (ParseException e) {
+          e.printStackTrace();
+      }
+
+      if (dockerArgsParser.hasOption("m")) {
+          String memoryArgs = dockerArgsParser.getOptionValue("m") ;
+          int memorySize = Integer.parseInt(memoryArgs.split("[\\D]+")[0]);
+          if(memoryArgs.contains("m")||memoryArgs.contains("M")){
+              con.withMemoryLimit(new Long( memorySize * 1024 * 1024 ));
+
+          }else if(memoryArgs.contains("g")||memoryArgs.contains("G")) {
+              con.withMemoryLimit(new Long( memorySize * 1024 * 1024* 1024));
+
+          }
+      }else {
+
+          con.withMemoryLimit(DEFAULT_CONTAINER_MEMORY);
+
+      }
+
+      if(dockerArgsParser.hasOption("c")){
+          int cpushares = Integer.parseInt(dockerArgsParser.getOptionValue("c"));
+          con.withCpuShares(cpushares);
+      }else{
+          con.withCpuShares(DEFAULT_CONTAINER_CPU_SHARES);
+      }
+
+
+
+
+      con.withName(containerName);
+   // con.withCpuShares(this.param.containerVirtualCores);
+   // con.withMemoryLimit(new Long(this.param.containerMemory * 1024 * 1024 * 1024));
     con.withAttachStderr(true);
     con.withAttachStdin(false);
     con.withAttachStdout(true);
@@ -221,7 +263,7 @@ public class DockerContainerRunner {
 
 
     }
-    con.withBinds(volumeBinds.toArray(new Bind[0]));
+    con.withBinds(volumeBinds.toArray(new Bind[volumeBinds.size()]));
 
     ArrayList<String> cmds = new ArrayList<String>();
     Collections.addAll(cmds, RUN_CMD);
@@ -229,6 +271,8 @@ public class DockerContainerRunner {
     param.cmdAndArgs = cmds.toArray(param.cmdAndArgs);
     con.withCmd(this.param.cmdAndArgs);
     con.withWorkingDir(param.workingDir);
+
+
 
     return con;
   }
