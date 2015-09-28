@@ -40,7 +40,7 @@ public class DockerContainerRunner {
   private volatile boolean isStopContainerRequested = false;
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
-  private static final long DEFAULT_CONTAINER_MEMORY = 1 *1024 *1024 *1024 ;
+  private static final long DEFAULT_CONTAINER_MEMORY = 1 *1024 *1024 *1024L ;
   private static final int  DEFAULT_CONTAINER_CPU_SHARES = 512 ;
 
 
@@ -212,6 +212,7 @@ public class DockerContainerRunner {
 
       Options opts = new Options();
       opts.addOption(OptionBuilder.withLongOpt("rm").withDescription("rm the container after execute").create());
+      opts.addOption(new Option("v","volume",true,"the memory of container"));
       opts.addOption(new Option("m","memory",true,"the memory of container"));
       opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
       CommandLine dockerArgsParser = null;
@@ -222,13 +223,15 @@ public class DockerContainerRunner {
       }
 
       if (dockerArgsParser.hasOption("m")) {
+
           String memoryArgs = dockerArgsParser.getOptionValue("m") ;
+          LOG.info("Set container memory to " +memoryArgs);
           int memorySize = Integer.parseInt(memoryArgs.split("[\\D]+")[0]);
           if(memoryArgs.contains("m")||memoryArgs.contains("M")){
-              con.withMemoryLimit(new Long( memorySize * 1024 * 1024 ));
+              con.withMemoryLimit(new Long( memorySize * 1024 * 1024L ));
 
           }else if(memoryArgs.contains("g")||memoryArgs.contains("G")) {
-              con.withMemoryLimit(new Long( memorySize * 1024 * 1024* 1024));
+              con.withMemoryLimit(new Long( memorySize * 1024 * 1024* 1024L));
 
           }
       }else {
