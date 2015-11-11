@@ -215,6 +215,7 @@ public class DockerContainerRunner {
       opts.addOption(new Option("v","volume",true,"the memory of container"));
       opts.addOption(new Option("m","memory",true,"the memory of container"));
       opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
+	  opts.addOption(new Option("H","net",true,"the host of the container"));
       CommandLine dockerArgsParser = null;
       try {
           dockerArgsParser = new GnuParser().parse(opts, param.getDockerArgs(), true);
@@ -247,8 +248,11 @@ public class DockerContainerRunner {
           con.withCpuShares(DEFAULT_CONTAINER_CPU_SHARES);
       }
 
-
-
+	  if(dockerArgsParser.hasOption("H")){
+        String net = dockerArgsParser.getOptionValue("H");
+        con.withNetworkMode(net);
+      }
+	
 
       con.withName(containerName);
    // con.withCpuShares(this.param.containerVirtualCores);

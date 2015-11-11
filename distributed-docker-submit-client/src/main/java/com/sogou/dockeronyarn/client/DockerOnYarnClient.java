@@ -58,6 +58,7 @@ public class DockerOnYarnClient {
   // Amt. of virtual core resource to request for to run the App Master
   private int amVCores = 1;
 
+  private static final String libDir = "lib";
 
   private boolean debugFlag;
   private FileSystem fs;
@@ -191,12 +192,10 @@ public class DockerOnYarnClient {
     // Copy the application master jar to the filesystem
     // Create a local resource to point to the destination jar path
 
-    addToLocalResources(appDescriptor.getAmJarPath(), appMasterJarHdfsPath, appId.toString(),
-            localResources, appDescriptor);
+    loadLocalResources(appDescriptor.getAmJarPath(), appMasterJarHdfsPath,localResources);
 
-    addToLocalResources(ddockerConf.get(DistributedDockerConfiguration.DDOCKER_RUNNER_PATH),
-            DockerRunnerApplicationMaster.LOCAL_RUNNER_NAME, appId.toString(),
-            localResources, appDescriptor);
+    loadLocalResources(ddockerConf.get(DistributedDockerConfiguration.DDOCKER_RUNNER_PATH),
+            DockerRunnerApplicationMaster.LOCAL_RUNNER_NAME,localResources);
 
     // Set the log4j properties if needed
     if (!appDescriptor.getLog4jPropFile().isEmpty()) {
@@ -271,7 +270,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
- //  vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
+    //vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {
@@ -453,6 +452,25 @@ public class DockerOnYarnClient {
     this.debugFlag = debugFlag;
   }
 
+  private void loadLocalResources(String fileSrcPath,
+                                   String fileDstPath,
+                                   Map<String, LocalResource> localResources) throws IOException {
+        Preconditions.checkNotNull(fileDstPath);
+        String suffix =
+               libDir + "/" + fileDstPath ;
+        Path dst =
+                new Path(fs.getHomeDirectory(),suffix);
+        if(!fs.exists(dst)){
+            fs.copyFromLocalFile(new Path(fileSrcPath), dst);
+        }
+        FileStatus scFileStatus = fs.getFileStatus(dst);
+        LocalResource scRsrc =
+                LocalResource.newInstance(
+                        ConverterUtils.getYarnUrlFromURI(dst.toUri()),
+                        LocalResourceType.FILE, LocalResourceVisibility.PUBLIC,
+                        scFileStatus.getLen(), scFileStatus.getModificationTime());
+        localResources.put(fileDstPath, scRsrc);
+    }
 
 
   public ApplicationReport getApplicationReport(ApplicationId appId)
