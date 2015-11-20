@@ -116,7 +116,18 @@ public class DockerRunnerApplicationMaster {
 
     return p;
   }
-  public DockerRunnerApplicationMaster() {
+	//init the docker options
+   public static Options InitDockerOptions() {
+        Options opts = new Options();
+        opts.addOption("v", true, "the mount volume");
+        opts.addOption(OptionBuilder.withLongOpt("rm").withDescription("rm the container after execute").create());
+        opts.addOption(new Option("m","memory",true,"the memory of container"));
+        opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
+        opts.addOption(new Option("H","cpu-shares",true,"the host of the container"));
+        return opts;
+    }
+
+    public DockerRunnerApplicationMaster() {
     // Set up the configuration
     conf = new YarnConfiguration();
     appHistoryTrackingUrlBase = conf.get("yarn.timeline-service.webapp.address");
