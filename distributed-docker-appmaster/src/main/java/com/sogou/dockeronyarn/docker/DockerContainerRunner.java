@@ -111,7 +111,7 @@ public class DockerContainerRunner {
 
   public int waitContainerExit() {
 
-    final long WAIT_INTERVAL = 0;
+    final long WAIT_INTERVAL = 100;
 	long waitedMilliSecs = 0;
 
     while(true){
@@ -126,7 +126,6 @@ public class DockerContainerRunner {
       try {
         long waitStart = System.currentTimeMillis();
         waitThread.join(WAIT_INTERVAL);
-        containerStopped = true;
         waitedMilliSecs += System.currentTimeMillis() - waitStart;
       } catch (InterruptedException e) {
         LOG.info("Interrupted when waiting container to exit");
@@ -140,7 +139,8 @@ public class DockerContainerRunner {
       else{
         LOG.info(String.format("Container %s running for %d secs and stopped.",
                 containerId, waitedMilliSecs/1000));
-        break;
+        containerStopped = true;
+		break;
       }
     }
 
