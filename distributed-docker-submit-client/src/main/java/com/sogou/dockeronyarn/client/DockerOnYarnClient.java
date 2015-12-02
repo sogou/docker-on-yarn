@@ -58,7 +58,7 @@ public class DockerOnYarnClient {
   // Amt. of virtual core resource to request for to run the App Master
   private int amVCores = 1;
 
-  private static final String libDir = "lib";
+  private static final String libDir = "lib/debug";
 
   private boolean debugFlag;
   private FileSystem fs;
@@ -270,7 +270,7 @@ public class DockerOnYarnClient {
 
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
-    //vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
+    vargs.add("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=12345");
 
     // Pass DistributedDockerConfiguration as Properties
     for (Map.Entry<String, String> e : ddockerConf) {

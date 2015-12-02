@@ -111,8 +111,8 @@ public class DockerContainerRunner {
 
   public int waitContainerExit() {
 
-    final long WAIT_INTERVAL = 100;
-    long waitedMilliSecs = 0;
+    final long WAIT_INTERVAL = 0;
+	long waitedMilliSecs = 0;
 
     while(true){
       if(isStopContainerRequested){
