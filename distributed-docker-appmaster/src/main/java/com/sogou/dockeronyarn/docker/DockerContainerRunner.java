@@ -89,13 +89,19 @@ public class DockerContainerRunner {
     this.waitThread = new Thread(new Runnable() {
       @Override
       public void run() {
-        WaitContainerCmd wc = docker.waitContainerCmd(containerId);
+          //we create a new client to wait the container return
+          DockerClient checkContainerClient = createDockerClient();
+        WaitContainerCmd wc = checkContainerClient.waitContainerCmd(containerId);
         try {
           exitcode = wc.exec();
           LOG.info(String.format("Container %s exited with exitCode=%d", containerId, exitcode));
+            wc.close();
+            checkContainerClient.close();
         } catch (NotFoundException e) {
           LOG.error(String.format("Container %s not found", containerId), e);
           exitcode = ExitCode.CONTAINER_NOT_CREATE.getValue();
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
         }
       }
     }, "waitThread-" + containerId);
@@ -126,7 +132,6 @@ public class DockerContainerRunner {
       try {
         long waitStart = System.currentTimeMillis();
         waitThread.join(WAIT_INTERVAL);
-        containerStopped = true;
         waitedMilliSecs += System.currentTimeMillis() - waitStart;
       } catch (InterruptedException e) {
         LOG.info("Interrupted when waiting container to exit");
@@ -140,6 +145,8 @@ public class DockerContainerRunner {
       else{
         LOG.info(String.format("Container %s running for %d secs and stopped.",
                 containerId, waitedMilliSecs/1000));
+          //container is stoped now
+          containerStopped = true;
         break;
       }
     }
@@ -247,7 +254,8 @@ public class DockerContainerRunner {
       }else{
           con.withCpuShares(DEFAULT_CONTAINER_CPU_SHARES);
       }
-
+      //set --net=host as default
+      con.withNetworkMode("host");
 	  if(dockerArgsParser.hasOption("H")){
         String net = dockerArgsParser.getOptionValue("H");
         con.withNetworkMode(net);
