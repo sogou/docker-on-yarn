@@ -169,7 +169,6 @@ public class DockerShareSpaceMonitor {
 				
 					DockerClientConfigBuilder configBuilder = DockerClientConfig
 							.createDefaultConfigBuilder();
-					configBuilder.withLoggingFilter(false);
 					DockerClientConfig config = configBuilder.build();
 
 					 DockerClient docker = DockerClientBuilder.getInstance(config)

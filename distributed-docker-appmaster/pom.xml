@@ -18,8 +18,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jdk.debug>true</jdk.debug>
         <jdk.optimize>false</jdk.optimize>
-        <jdk.source>1.6</jdk.source>
-        <jdk.target>1.6</jdk.target>
+        <jdk.source>1.7</jdk.source>
+        <jdk.target>1.7</jdk.target>
 
     </properties>
 
@@ -62,7 +62,7 @@
         <dependency>
             <groupId>com.github.docker-java</groupId>
             <artifactId>docker-java</artifactId>
-            <version>1.2.0</version>
+            <version>2.2.3</version>
         </dependency>
 
         <dependency>

@@ -6,18 +6,24 @@ import com.github.dockerjava.api.NotModifiedException;
 import com.github.dockerjava.api.command.*;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
+import com.github.dockerjava.core.command.LogContainerResultCallback;
+import com.github.dockerjava.core.command.PullImageResultCallback;
+
 import org.apache.commons.cli.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.yarn.util.SystemClock;
 import org.apache.hadoop.yarn.webapp.NotFoundException;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class DockerContainerRunner {
 
@@ -72,10 +78,10 @@ public class DockerContainerRunner {
   public void startContainer(String containerName) throws IOException, DockerException {
     LOG.info("Pulling docker image: " + param.dockerImage);
     try {
-      docker.pullImageCmd(param.dockerImage).exec().close();
-    }catch (IOException e){
-      throw new RuntimeException("Pull docker image failed.", e);
-    }
+      docker.pullImageCmd(param.dockerImage).exec(new PullImageResultCallback()).awaitCompletion(180, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Pull docker image failed.",e);
+   }
 
     CreateContainerCmd createContainerCmd = getCreateContainerCmd(containerName);
     LOG.info("Creating docker container: " + createContainerCmd.toString());
@@ -154,12 +160,16 @@ public class DockerContainerRunner {
     if(param.debugFlag) {
       LOG.info(String.format("Container %s is NOT removed as requested by user with debugFlag=%b",
               containerId, param.debugFlag));
-    }else{
-      docker.removeContainerCmd(containerId).exec();
+    }else try{
+      DockerClient rmClient = createDockerClient();
+      rmClient.removeContainerCmd(containerId).exec();
+      rmClient.close();
       LOG.info(String.format("Container %s removed.", containerId));
       containerId = null;
+    }catch (IOException e) {
+      LOG.warn("ERROR in removine Container");
+      LOG.error(e);
     }
-
     return exitcode;
   }
 
@@ -204,8 +214,7 @@ public class DockerContainerRunner {
     LOG.info("Initializing Docker Client");
     DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
             .createDefaultConfigBuilder();
-    configBuilder.withLoggingFilter(this.param.debugFlag)
-           .withUri("" + param.dockerHost);
+    configBuilder.withUri("" + param.dockerHost);
             //.withDockerCertPath(param.dockerCertPath);
     DockerClientConfig config = configBuilder.build();
 
@@ -306,6 +315,19 @@ public class DockerContainerRunner {
     this.docker.close();
     LOG.info("Docker client closed");
   }
+  
+  public static class LogContainerYarnCallback extends LogContainerResultCallback {
+    protected PrintStream out;
+
+    public LogContainerYarnCallback(boolean isStdout) {
+      super();
+      out = isStdout ? System.out: System.err;
+    }
+    public void onNext(Frame item){
+      out.println(new String(item.getPayload()).trim());
+    }
+
+  }
 
 
   private void startLogTailingThreads(final String containerId) {
@@ -320,38 +342,20 @@ public class DockerContainerRunner {
     Thread thread = new Thread() {
       @Override
       public void run() {
-        BufferedReader reader = null;
-
         try {
-          LogContainerCmd logCmd = docker.logContainerCmd(containerId);
-          logCmd.withFollowStream(true);
-
-          logCmd.withStdErr(!isStdout);
-          logCmd.withStdOut(isStdout);
-          logCmd.withTimestamps(false);
-
-          InputStream input = logCmd.exec();
-          reader = new BufferedReader(new InputStreamReader(input));
-          String line;
-          PrintStream out = isStdout? System.out: System.err;
-          while ((line = reader.readLine()) != null) {
-            out.println(line.trim());
-          }
+          docker.logContainerCmd(containerId)
+                  .withFollowStream(true)
+                  .withStdErr(!isStdout)
+                  .withStdOut(isStdout)
+                  .withTimestamps(false)
+                  .exec(new LogContainerYarnCallback(isStdout))
+                  .awaitCompletion();
 
           LOG.info(String.format("Tailing %s of container %s stopped",
                   isStdout ? "STDOUT" : "STDERR",
                   containerId));
         } catch (Exception e) {
           LOG.error(e);
-        } finally {
-          if (reader != null) {
-            try {
-              reader.close();
-            } catch (IOException e) {
-              LOG.error(e);
-            }
-          }
-
         }
       }
     };
@@ -359,6 +363,7 @@ public class DockerContainerRunner {
     thread.setDaemon(true);
     return thread;
   }
+
 
   public static void main(String[] args) {
 
