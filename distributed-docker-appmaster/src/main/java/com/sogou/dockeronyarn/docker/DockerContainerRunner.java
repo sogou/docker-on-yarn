@@ -30,7 +30,7 @@ public class DockerContainerRunner {
   private static String[] RUN_CMD = new String[]{"/usr/bin/python", CONTAINER_RUNNER_SCRIPT_PATH};
 
   private final DockerContainerRunnerParam param;
-  private int stopTimeout = 60;
+  private int stopTimeout = 150;
 
   private final DockerClient docker;
 
@@ -43,7 +43,7 @@ public class DockerContainerRunner {
   private volatile boolean isStopContainerRequested = false;
   private List<Bind> volumeBinds = new ArrayList<Bind>();
 
-  private static final long DEFAULT_CONTAINER_MEMORY = 1 *1024 *1024 *1024L ;
+  private static final long DEFAULT_CONTAINER_MEMORY = 2 *1024 *1024 *1024L ;
   private static final int  DEFAULT_CONTAINER_CPU_SHARES = 512 ;
 
 
@@ -197,6 +197,8 @@ public class DockerContainerRunner {
       handleDockerException(nfe);
     }catch(NotModifiedException nme){
       handleDockerException(nme);
+    }finally {
+      stopContainerCmd.close();
     }
   }
 
@@ -256,7 +258,7 @@ public class DockerContainerRunner {
 
       }
 
-      if(dockerArgsParser.hasOption("c")){
+      if(dockerArgsParser.hasOption("c")) {
           int cpushares = Integer.parseInt(dockerArgsParser.getOptionValue("c"));
           con.withCpuShares(cpushares);
       }else{
@@ -264,7 +266,7 @@ public class DockerContainerRunner {
       }
       //set --net=host as default
       con.withNetworkMode("host");
-	  if(dockerArgsParser.hasOption("H")){
+	  if(dockerArgsParser.hasOption("H")) {
         String net = dockerArgsParser.getOptionValue("H");
         con.withNetworkMode(net);
       }
@@ -279,8 +281,7 @@ public class DockerContainerRunner {
 
     this.volumeBinds.add(new Bind(param.runnerScriptPath,
             new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
-    for(String mountPath :param.mountVolume.split("\\+"))
-    {
+    for(String mountPath :param.mountVolume.split("\\+")) {
         Bind localPath = new Bind(mountPath.split(":")[0],new Volume(mountPath.split(":")[1]),AccessMode.rw);
         volumeBinds.add(localPath);
 
@@ -322,13 +323,25 @@ public class DockerContainerRunner {
       super();
       out =  System.err;
     }
+    @Override
     public void onNext(Frame item){
       out.println(new String(item.getPayload()).trim());
     }
-
+    @Override
+    public void onError(Throwable throwable) {
+      super.onError(throwable);
+      out.println("LogContainerYarnCallback on Error");
+      if ( out != null ) {
+        out.close();
+      }
+    }
+    @Override
     public void onComplete() {
       super.onComplete();
-      out.close();
+      out.println("LogConterYarnCallback on complete");
+      if ( out != null ) {
+        out.close();
+      }
     }
 
   }
