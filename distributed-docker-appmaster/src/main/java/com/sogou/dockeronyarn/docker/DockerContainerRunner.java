@@ -16,9 +16,7 @@ import com.github.dockerjava.core.command.PullImageResultCallback;
 import org.apache.commons.cli.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.yarn.util.SystemClock;
-import org.apache.hadoop.yarn.webapp.NotFoundException;
-
+import com.github.dockerjava.api.NotFoundException;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +34,6 @@ public class DockerContainerRunner {
 
   private final DockerClient docker;
 
-  private Thread stdoutThread;
   private Thread stderrThread;
   private Thread waitThread;
 
@@ -78,7 +75,7 @@ public class DockerContainerRunner {
   public void startContainer(String containerName) throws IOException, DockerException {
     LOG.info("Pulling docker image: " + param.dockerImage);
     try {
-      docker.pullImageCmd(param.dockerImage).exec(new PullImageResultCallback()).awaitCompletion(180, TimeUnit.SECONDS);
+      docker.pullImageCmd(param.dockerImage).exec(new PullImageResultCallback()).awaitCompletion(181, TimeUnit.SECONDS).close();
     } catch (InterruptedException e) {
       throw new RuntimeException("Pull docker image failed.",e);
    }
@@ -96,18 +93,22 @@ public class DockerContainerRunner {
       @Override
       public void run() {
           //we create a new client to wait the container return
-          DockerClient checkContainerClient = createDockerClient();
+        DockerClient checkContainerClient = createDockerClient();
         WaitContainerCmd wc = checkContainerClient.waitContainerCmd(containerId);
         try {
           exitcode = wc.exec();
           LOG.info(String.format("Container %s exited with exitCode=%d", containerId, exitcode));
-            wc.close();
-            checkContainerClient.close();
+
+          checkContainerClient.close();
+          LOG.info("WaittingClient is closed");
         } catch (NotFoundException e) {
+
           LOG.error(String.format("Container %s not found", containerId), e);
           exitcode = ExitCode.CONTAINER_NOT_CREATE.getValue();
         } catch (IOException e) {
-            LOG.error(e.getMessage());
+          e.printStackTrace();
+        }finally {
+          wc.close();
         }
       }
     }, "waitThread-" + containerId);
@@ -121,10 +122,10 @@ public class DockerContainerRunner {
    * @return Exit code of the container.
    */
 
-  public int waitContainerExit() {
+  public int waitContainerExit() throws IOException {
 
     final long WAIT_INTERVAL = 100;
-    long waitedMilliSecs = 0;
+	long waitedMilliSecs = 0;
 
     while(true){
       if(isStopContainerRequested){
@@ -157,18 +158,16 @@ public class DockerContainerRunner {
       }
     }
 
-    if(param.debugFlag) {
-      LOG.info(String.format("Container %s is NOT removed as requested by user with debugFlag=%b",
-              containerId, param.debugFlag));
-    }else try{
-      DockerClient rmClient = createDockerClient();
+    DockerClient rmClient = createDockerClient();
+   try{
       rmClient.removeContainerCmd(containerId).exec();
-      rmClient.close();
       LOG.info(String.format("Container %s removed.", containerId));
-      containerId = null;
-    }catch (IOException e) {
-      LOG.warn("ERROR in removine Container");
+    }catch (NotFoundException e) {
       LOG.error(e);
+    }finally {
+      rmClient.close();
+      LOG.info("removeClient is closed");
+      containerId=null;
     }
     return exitcode;
   }
@@ -319,40 +318,41 @@ public class DockerContainerRunner {
   public static class LogContainerYarnCallback extends LogContainerResultCallback {
     protected PrintStream out;
 
-    public LogContainerYarnCallback(boolean isStdout) {
+    public LogContainerYarnCallback() {
       super();
-      out = isStdout ? System.out: System.err;
+      out =  System.err;
     }
     public void onNext(Frame item){
       out.println(new String(item.getPayload()).trim());
+    }
+
+    public void onComplete() {
+      super.onComplete();
+      out.close();
     }
 
   }
 
 
   private void startLogTailingThreads(final String containerId) {
-    this.stdoutThread = createTailingThread(containerId, true);
-    this.stderrThread = createTailingThread(containerId, false);
-
-    stdoutThread.start();
+    this.stderrThread = createTailingThread(containerId);
     stderrThread.start();
   }
 
-  private Thread createTailingThread(final String containerId, final boolean isStdout) {
+  private Thread createTailingThread(final String containerId) {
     Thread thread = new Thread() {
       @Override
       public void run() {
         try {
           docker.logContainerCmd(containerId)
                   .withFollowStream(true)
-                  .withStdErr(!isStdout)
-                  .withStdOut(isStdout)
+                  .withStdErr(true)
+                  .withStdOut(true)
                   .withTimestamps(false)
-                  .exec(new LogContainerYarnCallback(isStdout))
+                  .exec(new LogContainerYarnCallback())
                   .awaitCompletion();
 
-          LOG.info(String.format("Tailing %s of container %s stopped",
-                  isStdout ? "STDOUT" : "STDERR",
+          LOG.info(String.format("Tailing STDOUT/STDERR of container %s stopped",
                   containerId));
         } catch (Exception e) {
           LOG.error(e);
