@@ -45,38 +45,27 @@ import static com.sogou.dockeronyarn.common.Utils.checkNotEmpty;
  */
 public class DockerRunnerApplicationMaster {
   public static final String LOCAL_RUNNER_NAME = "runner.py";
-
   private static final Log LOG = LogFactory.getLog(DockerRunnerApplicationMaster.class);
-
   private Configuration conf;
-
   // Handle to communicate with the Resource Manager
   @SuppressWarnings("rawtypes")
   private AMRMClientAsync amRMClient;
   private ApplicationAttemptId appAttemptID;
-
   // Hostname of the container
   private String appMasterHostname = "localhost";
   // Port on which the app master listens for status updates from clients
   private int appMasterRpcPort = 9999;
   // Tracking url to which app master publishes info for clients to monitor
   private String appMasterTrackingUrl = ""; //"http://localhost:9999/someurl";
-
   private String appHistoryTrackingUrlBase = "";
   // Hardcoded path to custom log_properties
   private static final String log4jPath = "log4j.properties";
   protected AtomicInteger numRetryCount = new AtomicInteger();
-
   protected AtomicInteger MAX_RETRY_COUNT = new AtomicInteger(3);
-
   private String mountVolume ="";
-
   private String workDir="";
-
-
   private DockerContainerRunner dockerContainerRunner;
   private volatile boolean done;
-
   private String workingDirectory ;
   private String dockerImage;
   private String[] commandToRun;
@@ -87,58 +76,52 @@ public class DockerRunnerApplicationMaster {
     return workingDirectory + "/" + LOCAL_RUNNER_NAME;
   }
 
-
   private DockerContainerRunnerParam buildYarnDockerClientParam() {
     DockerContainerRunnerParam p = new DockerContainerRunnerParam();
-
     DistributedDockerConfiguration dockerConf = new DistributedDockerConfiguration();
-
     p.cmdAndArgs = commandToRun;
     p.containerMemory = dockerConf.getInt(DistributedDockerConfiguration.CONTAINER_MEMORY,
-            DistributedDockerConfiguration.DEFAULT_CONTAINER_MEMORY);
-
+        DistributedDockerConfiguration.DEFAULT_CONTAINER_MEMORY);
     p.containerVirtualCores = dockerConf.getInt(DistributedDockerConfiguration.CONTAINER_CORES,
-            DistributedDockerConfiguration.DEFAULT_CONTAINER_CORES);
+        DistributedDockerConfiguration.DEFAULT_CONTAINER_CORES);
 
     p.runnerScriptPath = getRunnerAbsolutePath();
-
     p.dockerCertPath = dockerConf.get(DistributedDockerConfiguration.DOCKER_CERT_PATH);
     Utils.checkNotEmpty(p.dockerCertPath, DistributedDockerConfiguration.DOCKER_CERT_PATH + " Not given");
-
     p.dockerHost = dockerConf.get(DistributedDockerConfiguration.DOCKER_HOST,
-            DistributedDockerConfiguration.DEFAULT_DOCKER_HOST);
+        DistributedDockerConfiguration.DEFAULT_DOCKER_HOST);
 
     p.dockerImage = this.dockerImage;
     p.mountVolume = this.mountVolume ;
     p.workingDir = this.workDir;
-
     p.setDockerArgs(dockerArgs);
-
     return p;
   }
 	//init the docker options
-   public static Options InitDockerOptions() {
-        Options opts = new Options();
-        opts.addOption("v", true, "the mount volume");
-        opts.addOption(OptionBuilder.withLongOpt("rm").withDescription("rm the container after execute").create());
-        opts.addOption(new Option("m","memory",true,"the memory of container"));
-        opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
-        opts.addOption(new Option("H","cpu-shares",true,"the host of the container"));
-        return opts;
-    }
+  public static Options InitDockerOptions() {
+    Options opts = new Options();
+    opts.addOption("v", true, "the mount volume");
+    opts.addOption(OptionBuilder.withLongOpt("rm")
+        .withDescription("rm the container after execute").create());
+    opts.addOption(new Option("m","memory",true,"the memory of container"));
+    opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
+    opts.addOption(new Option("H","cpu-shares",true,"the host of the container"));
+    return opts;
+  }
 
-    public DockerRunnerApplicationMaster() {
+  public DockerRunnerApplicationMaster() {
     // Set up the configuration
     conf = new YarnConfiguration();
     appHistoryTrackingUrlBase = conf.get("yarn.timeline-service.webapp.address");
-    if (appHistoryTrackingUrlBase == null || appHistoryTrackingUrlBase.isEmpty()){
-      throw new IllegalArgumentException("No yarn.timeline-service.webapp.address is found. Check your yarn-site.xml");
+    if (appHistoryTrackingUrlBase == null || appHistoryTrackingUrlBase.isEmpty()) {
+      throw new IllegalArgumentException("No yarn.timeline-service.webapp.address is found." + 
+          "Check your yarn-site.xml");
     }
 
     appHistoryTrackingUrlBase = "http://" + appHistoryTrackingUrlBase + "/applicationhistory/app/";
     workingDirectory = System.getenv("PWD");
     checkNotEmpty(workingDirectory, "PWD enviroment is not set");
-    if (!new File(getRunnerAbsolutePath()).isFile()){
+    if (!new File(getRunnerAbsolutePath()).isFile()) {
       throw new IllegalArgumentException("Runner cannot be found: " + getRunnerAbsolutePath());
     }
   }
@@ -148,9 +131,8 @@ public class DockerRunnerApplicationMaster {
     try {
       DockerRunnerApplicationMaster appMaster = new DockerRunnerApplicationMaster();
       LOG.info("Initializing ApplicationMaster. "
-              + "yarn.timeline-service.webapp.address" + " = "
-              + appMaster.appHistoryTrackingUrlBase);
-
+          + "yarn.timeline-service.webapp.address" 
+          + " = " + appMaster.appHistoryTrackingUrlBase);
       boolean doRun = appMaster.init(args);
       if (!doRun) {
         System.exit(0);
@@ -172,9 +154,8 @@ public class DockerRunnerApplicationMaster {
 
   private boolean run() throws IOException, YarnException {
     LOG.info("Starting ApplicationMaster");
-
     Credentials credentials =
-            UserGroupInformation.getCurrentUser().getCredentials();
+        UserGroupInformation.getCurrentUser().getCredentials();
     DataOutputBuffer dob = new DataOutputBuffer();
     credentials.writeTokenStorageToStream(dob);
     // Now remove the AM->RM token so that containers cannot access it.
@@ -186,7 +167,6 @@ public class DockerRunnerApplicationMaster {
       }
     }
 
-
     AMRMClientAsync.CallbackHandler allocListener = new RMCallbackHandler();
     amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, allocListener);
     amRMClient.init(conf);
@@ -196,8 +176,7 @@ public class DockerRunnerApplicationMaster {
     // This will start heartbeating to the RM
     appMasterHostname = NetUtils.getHostname();
     RegisterApplicationMasterResponse response = amRMClient
-            .registerApplicationMaster(appMasterHostname, appMasterRpcPort,
-                    appMasterTrackingUrl);
+        .registerApplicationMaster(appMasterHostname, appMasterRpcPort, appMasterTrackingUrl);
     // Dump out information about cluster capability as seen by the
     // resource manager
     int maxMem = response.getMaximumResourceCapability().getMemory();
@@ -206,26 +185,25 @@ public class DockerRunnerApplicationMaster {
     int maxVCores = response.getMaximumResourceCapability().getVirtualCores();
     LOG.info("Max vcores capabililty of resources in this cluster " + maxVCores);
 
-    try{
+    try {
       dockerContainerRunner.startContainer(String.format("%s-%s", appAttemptID, jobName));
       dockerContainerRunner.waitContainerExit();
     }
-    catch (Exception e){
+    catch (Exception e) {
       LOG.error("dockerContainerRunner exited with exception: " + e.getMessage(), e);
     }
 
     return finish();
   }
 
-
   /**
-   * Parse command line options
-   *
-   * @param args Command line args
-   * @return Whether init successful and run should be invoked
-   * @throws ParseException
-   * @throws IOException
-   */
+  * Parse command line options
+  *
+  * @param args Command line args
+  * @return Whether init successful and run should be invoked
+  * @throws ParseException
+  * @throws IOException
+  */
   private boolean init(String[] args) throws ParseException {
     Options opts = new Options();
     opts.addOption("priority", true, "Application Priority. Default 0");
@@ -242,17 +220,17 @@ public class DockerRunnerApplicationMaster {
     //Check whether customer log4j.properties file exists
     if (fileExist(log4jPath)) {
       try {
-        Log4jPropertyHelper.updateLog4jConfiguration(DockerRunnerApplicationMaster.class,
-                log4jPath);
+        Log4jPropertyHelper.updateLog4jConfiguration(
+            DockerRunnerApplicationMaster.class, log4jPath);
       } catch (Exception e) {
         LOG.warn("Can not set up custom log4j properties. " + e);
       }
     }
+
     if(!cliParser.hasOption("job_name")){
       LOG.error("job_name param not found");
       return false;
     }
-
     jobName = cliParser.getOptionValue("job_name");
     if (cliParser.hasOption("help")) {
       printUsage(opts);
@@ -264,45 +242,45 @@ public class DockerRunnerApplicationMaster {
     }
 
     Map<String, String> envs = System.getenv();
-
     if (!envs.containsKey(ApplicationConstants.Environment.CONTAINER_ID.name())) {
       if (cliParser.hasOption("app_attempt_id")) {
         String appIdStr = cliParser.getOptionValue("app_attempt_id", "");
         appAttemptID = ConverterUtils.toApplicationAttemptId(appIdStr);
       } else {
         throw new IllegalArgumentException(
-                "Application Attempt Id not set in the environment");
+            "Application Attempt Id not set in the environment");
       }
-    } else {
+    }
+    else {
       ContainerId containerId = ConverterUtils.toContainerId(envs
-              .get(ApplicationConstants.Environment.CONTAINER_ID.name()));
+          .get(ApplicationConstants.Environment.CONTAINER_ID.name()));
       appAttemptID = containerId.getApplicationAttemptId();
     }
 
     if (!envs.containsKey(ApplicationConstants.APP_SUBMIT_TIME_ENV)) {
       throw new RuntimeException(ApplicationConstants.APP_SUBMIT_TIME_ENV
-              + " not set in the environment");
+          + " not set in the environment");
     }
     if (!envs.containsKey(ApplicationConstants.Environment.NM_HOST.name())) {
       throw new RuntimeException(ApplicationConstants.Environment.NM_HOST.name()
-              + " not set in the environment");
+          + " not set in the environment");
     }
     if (!envs.containsKey(ApplicationConstants.Environment.NM_HTTP_PORT.name())) {
       throw new RuntimeException(ApplicationConstants.Environment.NM_HTTP_PORT
-              + " not set in the environment");
+          + " not set in the environment");
     }
     if (!envs.containsKey(ApplicationConstants.Environment.NM_PORT.name())) {
       throw new RuntimeException(ApplicationConstants.Environment.NM_PORT.name()
-              + " not set in the environment");
+          + " not set in the environment");
     }
 
     LOG.info("Application master for app" + ", appId="
-            + appAttemptID.getApplicationId().getId() + ", clustertimestamp="
-            + appAttemptID.getApplicationId().getClusterTimestamp()
-            + ", attemptId=" + appAttemptID.getAttemptId());
+        + appAttemptID.getApplicationId().getId() + ", clustertimestamp="
+        + appAttemptID.getApplicationId().getClusterTimestamp()
+        + ", attemptId=" + appAttemptID.getAttemptId());
 
     this.MAX_RETRY_COUNT.set(Integer.parseInt(cliParser.getOptionValue(
-            "container_retry", "3")));
+        "container_retry", "3")));
 
     dockerImage = cliParser.getOptionValue("image");
     checkNotEmpty(dockerImage, "No image argument given");
@@ -318,13 +296,12 @@ public class DockerRunnerApplicationMaster {
    * Dump out contents of $CWD and the environment to stdout for debugging
    */
   private void dumpOutDebugInfo() {
-
     LOG.info("Dump debug output");
     Map<String, String> envs = System.getenv();
     for (Map.Entry<String, String> env : envs.entrySet()) {
       LOG.info("System env: key=" + env.getKey() + ", val=" + env.getValue());
       System.out.println("System env: key=" + env.getKey() + ", val="
-              + env.getValue());
+          + env.getValue());
     }
 
     BufferedReader buf = null;
@@ -357,13 +334,13 @@ public class DockerRunnerApplicationMaster {
     } else {
       appStatus = FinalApplicationStatus.FAILED;
       appMessage = "Diagnostics." + ", docker Container exited code: " +
-              dockerContainerRunner.getExitStatus();
+          dockerContainerRunner.getExitStatus();
       success = false;
     }
 
     try {
       amRMClient.unregisterApplicationMaster(appStatus, appMessage,
-              appHistoryTrackingUrlBase + appAttemptID.getApplicationId().toString());
+          appHistoryTrackingUrlBase + appAttemptID.getApplicationId().toString());
     } catch (YarnException ex) {
       LOG.error("Failed to unregister application", ex);
     } catch (IOException e) {
@@ -375,7 +352,6 @@ public class DockerRunnerApplicationMaster {
   }
 
   private boolean fileExist(String filePath) {
-
     return new File(filePath).exists();
   }
 
@@ -384,7 +360,6 @@ public class DockerRunnerApplicationMaster {
   }
 
   private class RMCallbackHandler implements AMRMClientAsync.CallbackHandler{
-
     public void onContainersCompleted(List<ContainerStatus> list) {
       // Nothing to do since we do not require more container
     }

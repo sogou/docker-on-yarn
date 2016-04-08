@@ -52,17 +52,17 @@ public class DockerContainerRunner {
     this.docker = createDockerClient();
 
     Runtime.getRuntime().addShutdownHook(
-            new Thread("shutdown DockerContainerRunner"){
-              public void run(){
-                LOG.info("shutdownhook start");
-                try {
-                  shutdown();
-                } catch (IOException e) {
-                  LOG.warn(e);
-                }
-                LOG.info("shutdownhook end");
-              }
-            }
+      new Thread("shutdown DockerContainerRunner") {
+        public void run() {
+          LOG.info("shutdownhook start");
+          try {
+            shutdown();
+          } catch (IOException e) {
+            LOG.warn(e);
+          }
+          LOG.info("shutdownhook end");
+        }
+      }
     );
   }
 
@@ -75,9 +75,10 @@ public class DockerContainerRunner {
   public void startContainer(String containerName) throws IOException, DockerException {
     LOG.info("Pulling docker image: " + param.dockerImage);
     try {
-      docker.pullImageCmd(param.dockerImage).exec(new PullImageResultCallback()).awaitCompletion(181, TimeUnit.SECONDS).close();
+      docker.pullImageCmd(param.dockerImage).exec(new PullImageResultCallback())
+          .awaitCompletion(181, TimeUnit.SECONDS).close();
     } catch (InterruptedException e) {
-      throw new RuntimeException("Pull docker image failed.",e);
+      throw new RuntimeException("Pull docker image failed.", e);
    }
 
     CreateContainerCmd createContainerCmd = getCreateContainerCmd(containerName);
@@ -86,28 +87,25 @@ public class DockerContainerRunner {
 
     LOG.info("Start docker container: " + containerId);
     docker.startContainerCmd(containerId).exec();
-
     startLogTailingThreads(containerId);
 
     this.waitThread = new Thread(new Runnable() {
       @Override
       public void run() {
-          //we create a new client to wait the container return
+        //we create a new client to wait the container return
         DockerClient checkContainerClient = createDockerClient();
         WaitContainerCmd wc = checkContainerClient.waitContainerCmd(containerId);
         try {
           exitcode = wc.exec();
           LOG.info(String.format("Container %s exited with exitCode=%d", containerId, exitcode));
-
           checkContainerClient.close();
           LOG.info("WaittingClient is closed");
         } catch (NotFoundException e) {
-
           LOG.error(String.format("Container %s not found", containerId), e);
           exitcode = ExitCode.CONTAINER_NOT_CREATE.getValue();
         } catch (IOException e) {
           e.printStackTrace();
-        }finally {
+        } finally {
           wc.close();
         }
       }
@@ -117,22 +115,20 @@ public class DockerContainerRunner {
   }
 
   /**
-   * Block until the docker container exit
-   *
-   * @return Exit code of the container.
-   */
-
+  * Block until the docker container exit
+  *
+  * @return Exit code of the container.
+  */
   public int waitContainerExit() throws IOException {
-
     final long WAIT_INTERVAL = 100;
-	long waitedMilliSecs = 0;
+	  long waitedMilliSecs = 0;
 
-    while(true){
-      if(isStopContainerRequested){
+    while (true) {
+      if (isStopContainerRequested) {
         doStopContainer("user requested");
       }
 
-      if((param.clientTimeout > 0 ) && waitedMilliSecs >= param.clientTimeout){
+      if((param.clientTimeout > 0) && (waitedMilliSecs >= param.clientTimeout)) {
         doStopContainer(String.format("Timeout for %d seconds", waitedMilliSecs/1000));
       }
 
@@ -145,26 +141,26 @@ public class DockerContainerRunner {
         break;
       }
 
-      if(waitThread.isAlive()){
+      if(waitThread.isAlive()) {
         // container is still running, keep waiting
         continue;
       }
-      else{
+      else {
         LOG.info(String.format("Container %s running for %d secs and stopped.",
-                containerId, waitedMilliSecs/1000));
-          //container is stoped now
-          containerStopped = true;
+            containerId, waitedMilliSecs/1000));
+        //container is stoped now
+        containerStopped = true;
         break;
       }
     }
 
     DockerClient rmClient = createDockerClient();
-   try{
+    try {
       rmClient.removeContainerCmd(containerId).exec();
       LOG.info(String.format("Container %s removed.", containerId));
-    }catch (NotFoundException e) {
+    } catch (NotFoundException e) {
       LOG.error(e);
-    }finally {
+    } finally {
       rmClient.close();
       LOG.info("removeClient is closed");
       containerId=null;
@@ -177,12 +173,10 @@ public class DockerContainerRunner {
       return;
     }
 
-    if(this.containerId == null)
+    if (this.containerId == null) {
       throw new IllegalStateException("containerId is null when call doStopContainer");
-
-
+    }
     LOG.info(String.format("Stopping Container %s cause %s", containerId, reason));
-
     // When stopping container, we just send the request to docker service,
     // and continue wait the waitThread to exit, which in turn wait the docker container exit.
     // If something wrong, cause the container never exit, so our process is blocked forever,
@@ -193,9 +187,9 @@ public class DockerContainerRunner {
     LOG.info(String.format("Executing stop command: %s", stopContainerCmd.toString()));
     try {
       stopContainerCmd.exec();
-    }catch(com.github.dockerjava.api.NotFoundException nfe){
+    } catch(NotFoundException nfe) {
       handleDockerException(nfe);
-    }catch(NotModifiedException nme){
+    }catch(NotModifiedException nme) {
       handleDockerException(nme);
     }finally {
       stopContainerCmd.close();
@@ -214,100 +208,86 @@ public class DockerContainerRunner {
   private DockerClient createDockerClient() {
     LOG.info("Initializing Docker Client");
     DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig
-            .createDefaultConfigBuilder();
+        .createDefaultConfigBuilder();
     configBuilder.withUri("" + param.dockerHost);
-            //.withDockerCertPath(param.dockerCertPath);
     DockerClientConfig config = configBuilder.build();
-
-    return DockerClientBuilder.getInstance(config)
-            .build();
+    return DockerClientBuilder.getInstance(config).build();
   }
 
   private CreateContainerCmd getCreateContainerCmd(String containerName) {
-
     CreateContainerCmd con = docker.createContainerCmd(this.param.dockerImage);
-
-      Options opts = new Options();
-      opts.addOption(OptionBuilder.withLongOpt("rm").withDescription("rm the container after execute").create());
-      opts.addOption(new Option("v","volume",true,"the memory of container"));
-      opts.addOption(new Option("m","memory",true,"the memory of container"));
-      opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
+    Options opts = new Options();
+    opts.addOption(OptionBuilder.withLongOpt("rm")
+        .withDescription("rm the container after execute").create());
+    opts.addOption(new Option("v","volume",true,"the memory of container"));
+    opts.addOption(new Option("m","memory",true,"the memory of container"));
+    opts.addOption(new Option("c","cpu-shares",true,"the cpu of the container"));
 	  opts.addOption(new Option("H","net",true,"the host of the container"));
-      CommandLine dockerArgsParser = null;
-      try {
-          dockerArgsParser = new GnuParser().parse(opts, param.getDockerArgs(), true);
-      } catch (ParseException e) {
-          e.printStackTrace();
+    CommandLine dockerArgsParser = null;
+    try {
+      dockerArgsParser = new GnuParser().parse(opts, param.getDockerArgs(), true);
+    } catch (ParseException e) {
+      e.printStackTrace();
+    }
+
+    if (dockerArgsParser.hasOption("m")) {
+      String memoryArgs = dockerArgsParser.getOptionValue("m") ;
+      LOG.info("Set container memory to " +memoryArgs);
+      int memorySize = Integer.parseInt(memoryArgs.split("[\\D]+")[0]);
+      if (memoryArgs.contains("m") || memoryArgs.contains("M")) {
+        con.withMemoryLimit(new Long(memorySize * 1024 * 1024L ));
       }
-
-      if (dockerArgsParser.hasOption("m")) {
-
-          String memoryArgs = dockerArgsParser.getOptionValue("m") ;
-          LOG.info("Set container memory to " +memoryArgs);
-          int memorySize = Integer.parseInt(memoryArgs.split("[\\D]+")[0]);
-          if(memoryArgs.contains("m")||memoryArgs.contains("M")){
-              con.withMemoryLimit(new Long( memorySize * 1024 * 1024L ));
-
-          }else if(memoryArgs.contains("g")||memoryArgs.contains("G")) {
-              con.withMemoryLimit(new Long( memorySize * 1024 * 1024* 1024L));
-
-          }
-      }else {
-
-          con.withMemoryLimit(DEFAULT_CONTAINER_MEMORY);
-
+      else if (memoryArgs.contains("g") || memoryArgs.contains("G")) {
+        con.withMemoryLimit(new Long(memorySize * 1024 * 1024* 1024L));
       }
+    }
+    else {
+      con.withMemoryLimit(DEFAULT_CONTAINER_MEMORY);
+    }
 
-      if(dockerArgsParser.hasOption("c")) {
-          int cpushares = Integer.parseInt(dockerArgsParser.getOptionValue("c"));
-          con.withCpuShares(cpushares);
-      }else{
-          con.withCpuShares(DEFAULT_CONTAINER_CPU_SHARES);
-      }
-      //set --net=host as default
-      con.withNetworkMode("host");
+    if (dockerArgsParser.hasOption("c")) {
+      int cpushares = Integer.parseInt(dockerArgsParser.getOptionValue("c"));
+      con.withCpuShares(cpushares);
+    }
+    else {
+      con.withCpuShares(DEFAULT_CONTAINER_CPU_SHARES);
+    }
+
+    //set --net=host as default
+    con.withNetworkMode("host");
 	  if(dockerArgsParser.hasOption("H")) {
-        String net = dockerArgsParser.getOptionValue("H");
-        con.withNetworkMode(net);
-      }
+      String net = dockerArgsParser.getOptionValue("H");
+      con.withNetworkMode(net);
+    }
 	
-
-      con.withName(containerName);
-   // con.withCpuShares(this.param.containerVirtualCores);
-   // con.withMemoryLimit(new Long(this.param.containerMemory * 1024 * 1024 * 1024));
+    con.withName(containerName);
     con.withAttachStderr(true);
     con.withAttachStdin(false);
     con.withAttachStdout(true);
-
     this.volumeBinds.add(new Bind(param.runnerScriptPath,
-            new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
-    for(String mountPath :param.mountVolume.split("\\+")) {
-        Bind localPath = new Bind(mountPath.split(":")[0],new Volume(mountPath.split(":")[1]),AccessMode.rw);
-        volumeBinds.add(localPath);
-
-
+        new Volume(CONTAINER_RUNNER_SCRIPT_PATH), AccessMode.ro));
+    for(String mountPath : param.mountVolume.split("\\+")) {
+      Bind localPath = new Bind(mountPath.split(":")[0], new Volume(
+          mountPath.split(":")[1]), AccessMode.rw);
+      volumeBinds.add(localPath);
     }
-    con.withBinds(volumeBinds.toArray(new Bind[volumeBinds.size()]));
 
+    con.withBinds(volumeBinds.toArray(new Bind[volumeBinds.size()]));
     ArrayList<String> cmds = new ArrayList<String>();
     Collections.addAll(cmds, RUN_CMD);
     Collections.addAll(cmds, param.cmdAndArgs);
     param.cmdAndArgs = cmds.toArray(param.cmdAndArgs);
     con.withCmd(this.param.cmdAndArgs);
     con.withWorkingDir(param.workingDir);
-
-
-
     return con;
   }
 
   public void shutdown() throws IOException {
     LOG.info("Finishing");
-
     // Container should be stopped first
     if(!containerStopped) {
-      LOG.warn(String.format("Docker Container not stopped when shutting down, will stop it now",
-              containerId));
+      LOG.warn(String.format(
+          "Docker Container not stopped when shutting down, will stop it now", containerId));
       stopContainer();
       waitContainerExit();
     }
@@ -318,23 +298,25 @@ public class DockerContainerRunner {
   
   public static class LogContainerYarnCallback extends LogContainerResultCallback {
     protected PrintStream out;
-
     public LogContainerYarnCallback() {
       super();
       out =  System.err;
     }
+
     @Override
-    public void onNext(Frame item){
+    public void onNext(Frame item) {
       out.println(new String(item.getPayload()).trim());
     }
+
     @Override
     public void onError(Throwable throwable) {
       super.onError(throwable);
       out.println("LogContainerYarnCallback on Error");
-      if ( out != null ) {
+      if (out != null) {
         out.close();
       }
     }
+
     @Override
     public void onComplete() {
       super.onComplete();
@@ -343,7 +325,6 @@ public class DockerContainerRunner {
         out.close();
       }
     }
-
   }
 
 
